@@ -140,7 +140,7 @@ pub fn rk1_4(
 mod tests {
     // we test some of the private components in this module (i.e. the RkTypes)
     use super::*;
-    use assert_approx_eq::assert_approx_eq;
+    use crate::test_utils::assert_approx_eq;
     use strum::IntoEnumIterator;
 
     #[test]
@@ -164,7 +164,12 @@ mod tests {
         // the value of that row in a.
         for rk_type in RkTypes::iter() {
             let c_coefficient_sum: f64 = rk_type.c().into_iter().sum();
-            assert_approx_eq!(c_coefficient_sum, 1.0);
+            assert_approx_eq(
+                c_coefficient_sum,
+                1.0,
+                1.0e-6,
+                format!("c coefficients do not sum to one for {rk_type:?}"),
+            );
         }
     }
 
@@ -175,7 +180,12 @@ mod tests {
         for rk_type in RkTypes::iter() {
             for (i, a_row) in rk_type.a().into_iter().enumerate() {
                 let b_row_coefficient_sum: f64 = rk_type.b().get(i).unwrap().iter().sum();
-                assert_approx_eq!(b_row_coefficient_sum, a_row);
+                assert_approx_eq(
+                    b_row_coefficient_sum,
+                    a_row,
+                    1.0e-6,
+                    format!("b row {i} does not sum to a[{i}] for {rk_type:?}"),
+                );
             }
         }
     }
