@@ -17,7 +17,8 @@ fn problem118_rksolvers() {
         vec![1., 0., 0., 0.],
         0.01,
         RkTypes::RK4,
-    );
+    )
+    .expect("RK run failed in test");
 
     for (i, t_entry) in times.into_iter().enumerate() {
         // get 0 since the first entry in the vector is equal to y

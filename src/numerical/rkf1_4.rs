@@ -61,6 +61,9 @@ impl RkTypes {
     }
 }
 
+#[derive(Debug)]
+pub struct Rk14Error;
+
 pub fn rk1_4(
     // The function to integrate, the input and output vector sizes (y) need to be the same, the
     // input is t, y
@@ -72,7 +75,7 @@ pub fn rk1_4(
     // Time step
     h: f64,
     rk: RkTypes,
-) -> (Vec<f64>, Vec<Vec<f64>>) {
+) -> Result<(Vec<f64>, Vec<Vec<f64>>), Rk14Error> {
     let t0 = tspan.0;
     let tf = tspan.1;
     let mut step_h = h;
@@ -80,6 +83,14 @@ pub fn rk1_4(
     let mut y = y0.clone();
     let mut tout = vec![t];
     let mut yout = vec![y.clone()];
+
+    if !h.is_finite() || h <= 0.0 {
+        return Err(Rk14Error);
+    }
+
+    if !t0.is_finite() || !tf.is_finite() || t0 > tf {
+        return Err(Rk14Error);
+    }
 
     while t < tf {
         let ti = t;
@@ -133,7 +144,7 @@ pub fn rk1_4(
         tout.push(t);
         yout.push(newy_vec);
     }
-    (tout, yout)
+    Ok((tout, yout))
 }
 
 #[cfg(test)]
@@ -200,7 +211,8 @@ mod tests {
             vec![1.],
             0.3,
             RkTypes::RK2,
-        );
+        )
+        .expect("Rk run failed in test");
 
         assert_approx_eq(
             *times.last().unwrap(),
