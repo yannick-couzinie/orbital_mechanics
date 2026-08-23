@@ -99,7 +99,7 @@ pub fn rk1_4(
                     f.push(vec![*f_entry])
                 }
             } else {
-                for j in 0..(i - 1) {
+                for j in 0..i {
                     // this will not run on i=1
                     for (k, y_entry) in y_inner.iter_mut().enumerate() {
                         *y_entry += step_h
