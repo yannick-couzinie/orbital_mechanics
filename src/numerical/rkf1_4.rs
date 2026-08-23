@@ -85,10 +85,11 @@ pub fn rk1_4(
         let ti = t;
         let yi = y.clone();
         let mut f: Vec<Vec<f64>> = Vec::new(); // the [n_stages, dim(y)] sized matrix with the function values
+        step_h = step_h.min(tf - t);
 
         // evaluate the time derivates at the 'n_stages' points within the current interval
         for i in 0..rk.n_stages() {
-            let t_inner = ti + rk.a().get(i).unwrap() * h;
+            let t_inner = ti + rk.a().get(i).unwrap() * step_h;
             let mut y_inner = yi.clone();
             if i == 0 {
                 let f_eval = ode_function(t_inner, &y_inner);
@@ -117,7 +118,6 @@ pub fn rk1_4(
                 }
             }
         }
-        step_h = step_h.min(tf - t);
         t += step_h;
         let mut newy_vec = Vec::new();
         // loop over dimensions of y
@@ -188,5 +188,32 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn check_non_divisible_step_length() {
+        // check that with a step length that is not divisible by the time range we correctly adapt
+        // the last step
+        let (times, states) = rk1_4(
+            &|_t, y: &Vec<f64>| vec![y[0]],
+            (0.0, 0.1),
+            vec![1.],
+            0.3,
+            RkTypes::RK2,
+        );
+
+        assert_approx_eq(
+            *times.last().unwrap(),
+            0.1,
+            1e-6,
+            "Step length 0.3 does not adapt correctly to time range (0.0, 0.1).",
+        );
+
+        assert_approx_eq(
+            *states.last().unwrap().first().unwrap(),
+            1.105, // roughly exp(0.1)
+            1e-3,
+            "State is wrongly calculated with non-divisible step length",
+        );
     }
 }
