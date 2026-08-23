@@ -1,6 +1,10 @@
 //! One-dimensional Runge-Kutta numerical integration with methods from RK1 to RK4.
 
+use strum::EnumIter;
+
 /// The RkTypes we can use
+
+#[derive(EnumIter, Debug)]
 pub enum RkTypes {
     /// First-order Runge-Kutta numerical integration
     RK1,
@@ -34,7 +38,7 @@ impl RkTypes {
     fn b(&self) -> Vec<Vec<f64>> {
         match self {
             RkTypes::RK1 => vec![vec![0.]],
-            RkTypes::RK2 => vec![vec![0., 1.]],
+            RkTypes::RK2 => vec![vec![0.], vec![1.]],
             RkTypes::RK3 => vec![vec![0., 0.], vec![0., 0.5], vec![-1., 2.]],
             RkTypes::RK4 => {
                 vec![
@@ -130,4 +134,49 @@ pub fn rk1_4(
         yout.push(newy_vec);
     }
     (tout, yout)
+}
+
+#[cfg(test)]
+mod tests {
+    // we test some of the private components in this module (i.e. the RkTypes)
+    use super::*;
+    use assert_approx_eq::assert_approx_eq;
+    use strum::IntoEnumIterator;
+
+    #[test]
+    fn test_coefficient_dimensions() {
+        for rk_type in RkTypes::iter() {
+            assert_eq!(rk_type.a().len(), rk_type.n_stages());
+            assert_eq!(rk_type.b().len(), rk_type.n_stages());
+            assert_eq!(rk_type.c().len(), rk_type.n_stages());
+            for row in rk_type.b() {
+                assert!(
+                    row.len() >= rk_type.n_stages().saturating_sub(1),
+                    "insufficient b coefficients for {rk_type:?}"
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn test_c_coefficients_sum() {
+        // see page 40 from Curtis on the top, each sum of c needs tob e 1 and each row of b equals
+        // the value of that row in a.
+        for rk_type in RkTypes::iter() {
+            let c_coefficient_sum: f64 = rk_type.c().into_iter().sum();
+            assert_approx_eq!(c_coefficient_sum, 1.0);
+        }
+    }
+
+    #[test]
+    fn test_ab_coefficients_sum() {
+        // see page 40 from Curtis on the top, each sum of c needs tob e 1 and each row of b equals
+        // the value of that row in a.
+        for rk_type in RkTypes::iter() {
+            for (i, a_row) in rk_type.a().into_iter().enumerate() {
+                let b_row_coefficient_sum: f64 = rk_type.b().get(i).unwrap().iter().sum();
+                assert_approx_eq!(b_row_coefficient_sum, a_row);
+            }
+        }
+    }
 }
