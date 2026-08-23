@@ -1,5 +1,6 @@
 //! One-dimensional Runge-Kutta numerical integration with methods from RK1 to RK4.
 
+use super::errors::IntegrateError;
 use strum::EnumIter;
 
 /// The RkTypes we can use
@@ -61,9 +62,6 @@ impl RkTypes {
     }
 }
 
-#[derive(Debug)]
-pub struct Rk14Error;
-
 pub fn rk1_4(
     // The function to integrate, the input and output vector sizes (y) need to be the same, the
     // input is t, y
@@ -75,7 +73,7 @@ pub fn rk1_4(
     // Time step
     h: f64,
     rk: RkTypes,
-) -> Result<(Vec<f64>, Vec<Vec<f64>>), Rk14Error> {
+) -> Result<(Vec<f64>, Vec<Vec<f64>>), IntegrateError> {
     let t0 = tspan.0;
     let tf = tspan.1;
     let mut step_h = h;
@@ -84,12 +82,22 @@ pub fn rk1_4(
     let mut tout = vec![t];
     let mut yout = vec![y.clone()];
 
+    // only forward propagation
     if !h.is_finite() || h <= 0.0 {
-        return Err(Rk14Error);
+        return Err(IntegrateError::InvalidStepSize { step: h });
     }
 
+    // only forward propagation and start has to be before end
     if !t0.is_finite() || !tf.is_finite() || t0 > tf {
-        return Err(Rk14Error);
+        return Err(IntegrateError::InvalidTimeSpan { start: t0, end: tf });
+    }
+
+    // make sure that t is not that big that the step gets eaten up in floating point precision
+    if t + step_h == t {
+        return Err(IntegrateError::StepDoesNotAdvanceTime {
+            time: t,
+            step: step_h,
+        });
     }
 
     while t < tf {
