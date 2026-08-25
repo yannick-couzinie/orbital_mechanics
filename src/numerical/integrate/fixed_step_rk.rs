@@ -1,48 +1,46 @@
-//! One-dimensional Runge-Kutta numerical integration with methods from RK1 to RK4.
+//! One-dimensional Runge-Kutta numerical integration with methods from Rk1 to Rk4.
 
 use super::errors::IntegrationError;
 use super::structs::IntegrationResult;
 use strum::EnumIter;
 
-/// The RkTypes we can use
-
 #[derive(EnumIter, Debug)]
-pub enum RkTypes {
+pub enum FixedStepRkMethods {
     /// First-order Runge-Kutta numerical integration
-    RK1,
+    Rk1,
     /// Second-order Runge-Kutta numerical integration
-    RK2,
+    Rk2,
     /// Third-order Runge-Kutta numerical integration
-    RK3,
+    Rk3,
     /// Fourth-order Runge-Kutta numerical integration
-    RK4,
+    Rk4,
 }
 
-impl RkTypes {
+impl FixedStepRkMethods {
     fn n_stages(&self) -> usize {
         match self {
-            RkTypes::RK1 => 1,
-            RkTypes::RK2 => 2,
-            RkTypes::RK3 => 3,
-            RkTypes::RK4 => 4,
+            FixedStepRkMethods::Rk1 => 1,
+            FixedStepRkMethods::Rk2 => 2,
+            FixedStepRkMethods::Rk3 => 3,
+            FixedStepRkMethods::Rk4 => 4,
         }
     }
 
     fn a(&self) -> Vec<f64> {
         match self {
-            RkTypes::RK1 => vec![0.],
-            RkTypes::RK2 => vec![0., 1.],
-            RkTypes::RK3 => vec![0., 0.5, 1.],
-            RkTypes::RK4 => vec![0., 0.5, 0.5, 1.],
+            FixedStepRkMethods::Rk1 => vec![0.],
+            FixedStepRkMethods::Rk2 => vec![0., 1.],
+            FixedStepRkMethods::Rk3 => vec![0., 0.5, 1.],
+            FixedStepRkMethods::Rk4 => vec![0., 0.5, 0.5, 1.],
         }
     }
 
     fn b(&self) -> Vec<Vec<f64>> {
         match self {
-            RkTypes::RK1 => vec![vec![0.]],
-            RkTypes::RK2 => vec![vec![0.], vec![1.]],
-            RkTypes::RK3 => vec![vec![0., 0.], vec![0., 0.5], vec![-1., 2.]],
-            RkTypes::RK4 => {
+            FixedStepRkMethods::Rk1 => vec![vec![0.]],
+            FixedStepRkMethods::Rk2 => vec![vec![0.], vec![1.]],
+            FixedStepRkMethods::Rk3 => vec![vec![0., 0.], vec![0., 0.5], vec![-1., 2.]],
+            FixedStepRkMethods::Rk4 => {
                 vec![
                     vec![0., 0., 0.],
                     vec![0.5, 0., 0.],
@@ -55,10 +53,10 @@ impl RkTypes {
 
     fn c(&self) -> Vec<f64> {
         match self {
-            RkTypes::RK1 => vec![1.],
-            RkTypes::RK2 => vec![0.5, 0.5],
-            RkTypes::RK3 => vec![1. / 6., 2. / 3., 1. / 6.],
-            RkTypes::RK4 => vec![1. / 6., 1. / 3., 1. / 3., 1. / 6.],
+            FixedStepRkMethods::Rk1 => vec![1.],
+            FixedStepRkMethods::Rk2 => vec![0.5, 0.5],
+            FixedStepRkMethods::Rk3 => vec![1. / 6., 2. / 3., 1. / 6.],
+            FixedStepRkMethods::Rk4 => vec![1. / 6., 1. / 3., 1. / 3., 1. / 6.],
         }
     }
 }
@@ -73,7 +71,7 @@ pub fn rk1_4<F>(
     y0: Vec<f64>,
     // Time step
     h: f64,
-    rk: RkTypes,
+    rk: FixedStepRkMethods,
 ) -> Result<IntegrationResult, IntegrationError>
 where
     F: Fn(f64, &[f64]) -> Vec<f64>,
@@ -185,14 +183,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    // we test some of the private components in this module (i.e. the RkTypes)
+    // we test some of the private components in this module (i.e. the FixedStepRkMethods)
     use super::*;
     use crate::test_utils::assert_approx_eq;
     use strum::IntoEnumIterator;
 
     #[test]
     fn test_coefficient_dimensions() {
-        for rk_type in RkTypes::iter() {
+        for rk_type in FixedStepRkMethods::iter() {
             assert_eq!(rk_type.a().len(), rk_type.n_stages());
             assert_eq!(rk_type.b().len(), rk_type.n_stages());
             assert_eq!(rk_type.c().len(), rk_type.n_stages());
@@ -209,7 +207,7 @@ mod tests {
     fn test_c_coefficients_sum() {
         // see page 40 from Curtis on the top, each sum of c needs tob e 1 and each row of b equals
         // the value of that row in a.
-        for rk_type in RkTypes::iter() {
+        for rk_type in FixedStepRkMethods::iter() {
             let c_coefficient_sum: f64 = rk_type.c().into_iter().sum();
             assert_approx_eq(
                 c_coefficient_sum,
@@ -224,7 +222,7 @@ mod tests {
     fn test_ab_coefficients_sum() {
         // see page 40 from Curtis on the top, each sum of c needs tob e 1 and each row of b equals
         // the value of that row in a.
-        for rk_type in RkTypes::iter() {
+        for rk_type in FixedStepRkMethods::iter() {
             for (i, a_row) in rk_type.a().into_iter().enumerate() {
                 let b_row_coefficient_sum: f64 = rk_type.b().get(i).unwrap().iter().sum();
                 assert_approx_eq(
@@ -241,8 +239,14 @@ mod tests {
     fn check_non_divisible_step_length() {
         // check that with a step length that is not divisible by the time range we correctly adapt
         // the last step
-        let integration_result = rk1_4(|_t, y| vec![y[0]], (0.0, 0.1), vec![1.], 0.3, RkTypes::RK2)
-            .expect("Rk run failed in test");
+        let integration_result = rk1_4(
+            |_t, y| vec![y[0]],
+            (0.0, 0.1),
+            vec![1.],
+            0.3,
+            FixedStepRkMethods::Rk2,
+        )
+        .expect("Rk run failed in test");
 
         assert_approx_eq(
             *integration_result.times.last().unwrap(),
@@ -257,5 +261,44 @@ mod tests {
             1e-3,
             "State is wrongly calculated with non-divisible step length",
         );
+    }
+
+    #[test]
+    fn problem118_rksolvers() {
+        // Run the complete solver and compare with the analytical result.
+        // this is the first order ssytem for d4y/dt4 + 2d2y/dt2 + y = 0 with initial conditions y=1 and
+        // dy/dt = d2y/dt2 = d3y/dt3 = 0 at t=0 solved for y(20) which should result in 9.545
+        // the analytical solution is actually t.cos() + (t / 2.0) * t.sin() so we can compare against
+        // that
+        //
+        // run the tests only for Rk4 as that should be proof enough that the solvers work, and getting
+        // the same accuracy on Rk1 would require thousand-fold of steps
+        let integration_result = rk1_4(
+            |_t, y| vec![y[1], y[2], y[3], -y[0] - 2.0 * y[2]],
+            (0.0, 20.0),
+            vec![1., 0., 0., 0.],
+            0.01,
+            FixedStepRkMethods::Rk4,
+        )
+        .expect("Rk run failed in test");
+
+        for (i, t_entry) in integration_result.times.into_iter().enumerate() {
+            // get 0 since the first entry in the vector is equal to y
+            let expected = t_entry.cos() + (t_entry * 0.5 * t_entry.sin());
+            let actual = integration_result
+                .states
+                .get(i)
+                .unwrap()
+                .first()
+                .copied()
+                .unwrap();
+
+            assert_approx_eq(
+                actual,
+                expected,
+                1.0e-6,
+                format!("problem 1.18 failed using Rk4 at step {i}, t={t_entry}"),
+            );
+        }
     }
 }
