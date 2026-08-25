@@ -1,6 +1,7 @@
 //! One-dimensional Runge-Kutta numerical integration with methods from RK1 to RK4.
 
 use super::errors::IntegrationError;
+use super::structs::IntegrationResult;
 use strum::EnumIter;
 
 /// The RkTypes we can use
@@ -62,10 +63,10 @@ impl RkTypes {
     }
 }
 
-pub fn rk1_4(
+pub fn rk1_4<F>(
     // The function to integrate, the input and output vector sizes (y) need to be the same, the
     // input is t, y
-    ode_function: &dyn Fn(f64, &Vec<f64>) -> Vec<f64>,
+    ode_function: F,
     // The timespan with the first entry being the start and the second the endpoint
     tspan: (f64, f64),
     // Column vector of the initial values of the vector y
@@ -73,7 +74,10 @@ pub fn rk1_4(
     // Time step
     h: f64,
     rk: RkTypes,
-) -> Result<(Vec<f64>, Vec<Vec<f64>>), IntegrationError> {
+) -> Result<IntegrationResult, IntegrationError>
+where
+    F: Fn(f64, &[f64]) -> Vec<f64>,
+{
     let t0 = tspan.0;
     let tf = tspan.1;
     let mut step_h = h;
@@ -92,12 +96,8 @@ pub fn rk1_4(
         return Err(IntegrationError::InvalidTimeSpan { start: t0, end: tf });
     }
 
-    // make sure that t is not that big that the step gets eaten up in floating point precision
-    if t + step_h == t {
-        return Err(IntegrationError::StepDoesNotAdvanceTime {
-            time: t,
-            step: step_h,
-        });
+    if !y0.iter().all(|x| x.is_finite()) {
+        return Err(IntegrationError::NonFiniteState { state: y0 });
     }
 
     while t < tf {
@@ -106,10 +106,19 @@ pub fn rk1_4(
         let mut f: Vec<Vec<f64>> = Vec::new(); // the [n_stages, dim(y)] sized matrix with the function values
         step_h = step_h.min(tf - t);
 
+        // make sure that t is not that big that the step gets eaten up in floating point precision
+        if t + step_h == t {
+            return Err(IntegrationError::StepDoesNotAdvanceTime {
+                time: t,
+                step: step_h,
+            });
+        }
+
         // evaluate the time derivates at the 'n_stages' points within the current interval
         for i in 0..rk.n_stages() {
             let t_inner = ti + rk.a().get(i).unwrap() * step_h;
             let mut y_inner = yi.clone();
+
             if i == 0 {
                 let f_eval = ode_function(t_inner, &y_inner);
                 for f_entry in &f_eval {
@@ -129,6 +138,22 @@ pub fn rk1_4(
                 }
 
                 let f_eval = ode_function(t_inner, &y_inner);
+
+                if f_eval.len() != y.len() {
+                    return Err(IntegrationError::MismatchedDerivativeDimension {
+                        state_dimension: y.len(),
+                        derivative_dimension: f_eval.len(),
+                    });
+                }
+
+                if !f_eval.iter().all(|x| x.is_finite()) {
+                    return Err(IntegrationError::NonFiniteDerivative {
+                        derivative: f_eval,
+                        state: y_inner,
+                        time: t,
+                    });
+                }
+
                 for (j, f_entry) in f_eval.into_iter().enumerate() {
                     // f is an empty vector at this point
                     // we want to push to f(:, i) where the : here is iterated in this for-loop
@@ -152,7 +177,10 @@ pub fn rk1_4(
         tout.push(t);
         yout.push(newy_vec);
     }
-    Ok((tout, yout))
+    Ok(IntegrationResult {
+        times: tout,
+        states: yout,
+    })
 }
 
 #[cfg(test)]
@@ -213,24 +241,18 @@ mod tests {
     fn check_non_divisible_step_length() {
         // check that with a step length that is not divisible by the time range we correctly adapt
         // the last step
-        let (times, states) = rk1_4(
-            &|_t, y: &Vec<f64>| vec![y[0]],
-            (0.0, 0.1),
-            vec![1.],
-            0.3,
-            RkTypes::RK2,
-        )
-        .expect("Rk run failed in test");
+        let integration_result = rk1_4(|_t, y| vec![y[0]], (0.0, 0.1), vec![1.], 0.3, RkTypes::RK2)
+            .expect("Rk run failed in test");
 
         assert_approx_eq(
-            *times.last().unwrap(),
+            *integration_result.times.last().unwrap(),
             0.1,
             1e-6,
             "Step length 0.3 does not adapt correctly to time range (0.0, 0.1).",
         );
 
         assert_approx_eq(
-            *states.last().unwrap().first().unwrap(),
+            *integration_result.states.last().unwrap().first().unwrap(),
             1.105, // roughly exp(0.1)
             1e-3,
             "State is wrongly calculated with non-divisible step length",

@@ -11,8 +11,8 @@ fn problem118_rksolvers() {
     //
     // run the tests only for RK4 as that should be proof enough that the solvers work, and getting
     // the same accuracy on RK1 would require thousand-fold of steps
-    let (times, states) = rk1_4(
-        &|_t, y: &Vec<f64>| vec![y[1], y[2], y[3], -y[0] - 2.0 * y[2]],
+    let integration_result = rk1_4(
+        |_t, y| vec![y[1], y[2], y[3], -y[0] - 2.0 * y[2]],
         (0.0, 20.0),
         vec![1., 0., 0., 0.],
         0.01,
@@ -20,10 +20,16 @@ fn problem118_rksolvers() {
     )
     .expect("RK run failed in test");
 
-    for (i, t_entry) in times.into_iter().enumerate() {
+    for (i, t_entry) in integration_result.times.into_iter().enumerate() {
         // get 0 since the first entry in the vector is equal to y
         let expected = t_entry.cos() + (t_entry * 0.5 * t_entry.sin());
-        let actual = states.get(i).unwrap().first().copied().unwrap();
+        let actual = integration_result
+            .states
+            .get(i)
+            .unwrap()
+            .first()
+            .copied()
+            .unwrap();
 
         assert_approx_eq(
             actual,
