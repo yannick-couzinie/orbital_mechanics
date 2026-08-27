@@ -1,5 +1,7 @@
+use nalgebra::SVector;
+
 #[derive(Debug)]
-pub enum IntegrationError {
+pub enum IntegrationError<const N: usize> {
     InvalidStepSize {
         step: f64,
     },
@@ -11,16 +13,12 @@ pub enum IntegrationError {
         time: f64,
         step: f64,
     },
-    MismatchedDerivativeDimension {
-        state_dimension: usize,
-        derivative_dimension: usize,
-    },
     NonFiniteDerivative {
-        derivative: Vec<f64>,
-        state: Vec<f64>,
+        derivative: SVector<f64, N>,
+        state: SVector<f64, N>,
         time: f64,
     },
     NonFiniteState {
-        state: Vec<f64>,
+        state: SVector<f64, N>,
     },
 }
