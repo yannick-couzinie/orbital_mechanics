@@ -78,6 +78,7 @@ where
     let mut tout = vec![t];
     let mut yout = vec![y];
     let tableau = rk.tableau();
+    let mut stages: Vec<nalgebra::SVector<f64, N>> = Vec::with_capacity(tableau.a.len());
 
     // only forward propagation
     if !h.is_finite() || h <= 0.0 {
@@ -95,7 +96,8 @@ where
 
     while t < tf {
         let ti = t;
-        let mut f: Vec<nalgebra::SVector<f64, N>> = Vec::new(); // the [n_stages, dim(y)] sized matrix with the function values
+        stages.clear();
+
         step_h = step_h.min(tf - t);
 
         // make sure that t is not that big that the step gets eaten up in floating point precision
@@ -111,7 +113,7 @@ where
             let t_inner = ti + tableau.a.get(i).unwrap() * step_h;
             let mut y_inner = y;
 
-            for (j, f_entry) in f.iter().enumerate() {
+            for (j, f_entry) in stages.iter().enumerate() {
                 // this will not run on i=0
                 y_inner.axpy(step_h * tableau.b[i][j], f_entry, 1.0);
             }
@@ -126,11 +128,11 @@ where
                 });
             }
 
-            f.push(f_eval);
+            stages.push(f_eval);
         }
         t += step_h;
 
-        for (i, f_entry) in f.iter().enumerate() {
+        for (i, f_entry) in stages.iter().enumerate() {
             y.axpy(step_h * tableau.c[i], f_entry, 1.0)
         }
         tout.push(t);
