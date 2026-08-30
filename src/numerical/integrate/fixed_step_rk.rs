@@ -3,9 +3,8 @@
 use super::errors::IntegrationError;
 use super::structs::IntegrationResult;
 use nalgebra;
-use strum::EnumIter;
 
-#[derive(EnumIter, Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum FixedStepRkMethods {
     /// First-order Runge-Kutta numerical integration
     Rk1,
@@ -35,7 +34,7 @@ static RK2_TABLEAU: ButcherTableau = ButcherTableau {
 };
 static RK3_TABLEAU: ButcherTableau = ButcherTableau {
     a: &[0., 0.5, 1.],
-    b: &[&[0., 0.], &[0., 0.5], &[-1., 2.]],
+    b: &[&[0., 0.], &[0.5, 0.], &[-1., 2.]],
     c: &[1. / 6., 2. / 3., 1. / 6.],
 };
 static RK4_TABLEAU: ButcherTableau = ButcherTableau {
@@ -146,14 +145,21 @@ where
 
 #[cfg(test)]
 mod tests {
+
+    const ALL: [FixedStepRkMethods; 4] = [
+        FixedStepRkMethods::Rk1,
+        FixedStepRkMethods::Rk2,
+        FixedStepRkMethods::Rk3,
+        FixedStepRkMethods::Rk4,
+    ];
+
     // we test some of the private components in this module (i.e. the FixedStepRkMethods)
     use super::*;
     use crate::test_utils::assert_approx_eq;
-    use strum::IntoEnumIterator;
 
     #[test]
     fn test_coefficient_dimensions() {
-        for rk_type in FixedStepRkMethods::iter() {
+        for rk_type in ALL.iter() {
             assert_eq!(rk_type.tableau().a.len(), rk_type.tableau().b.len());
             assert_eq!(rk_type.tableau().a.len(), rk_type.tableau().c.len());
 
@@ -170,8 +176,8 @@ mod tests {
     fn test_c_coefficients_sum() {
         // see page 40 from Curtis on the top, each sum of c needs tob e 1 and each row of b equals
         // the value of that row in a.
-        for rk_type in FixedStepRkMethods::iter() {
-            let c_coefficient_sum: f64 = rk_type.tableau().c.into_iter().sum();
+        for rk_type in ALL.iter() {
+            let c_coefficient_sum: f64 = rk_type.tableau().c.iter().sum();
             assert_approx_eq(
                 c_coefficient_sum,
                 1.0,
@@ -185,8 +191,8 @@ mod tests {
     fn test_ab_coefficients_sum() {
         // see page 40 from Curtis on the top, each sum of c needs tob e 1 and each row of b equals
         // the value of that row in a.
-        for rk_type in FixedStepRkMethods::iter() {
-            for (i, a_row) in rk_type.tableau().a.into_iter().enumerate() {
+        for rk_type in ALL.iter() {
+            for (i, a_row) in rk_type.tableau().a.iter().enumerate() {
                 let b_row_coefficient_sum: f64 = rk_type.tableau().b[i].iter().sum();
                 assert_approx_eq(
                     b_row_coefficient_sum,
@@ -202,30 +208,87 @@ mod tests {
     fn check_non_divisible_step_length() {
         // check that with a step length that is not divisible by the time range we correctly adapt
         // the last step
-        let integration_result = rk1_4(
+        for (rk_type, expected) in std::iter::zip(ALL.iter(), [1.1, 1.105, 1.105, 1.105].iter()) {
+            let integration_result = rk1_4(
+                |_t, y| nalgebra::SVector::<f64, 1>::new(y[0]),
+                (0.0, 0.1),
+                nalgebra::SVector::<f64, 1>::new(1.),
+                0.3,
+                *rk_type,
+            )
+            .expect("Rk run failed in test");
+
+            assert_approx_eq(
+                *integration_result.times.last().unwrap(),
+                0.1,
+                1e-6,
+                format!("{rk_type:?}: State is wrongly calculated with non-divisible step length"),
+            );
+
+            assert_approx_eq(
+                integration_result.states.last().unwrap()[0],
+                *expected, // roughly exp(0.1)
+                1e-3,
+                format!("{rk_type:?}: State is wrongly calculated with non-divisible step length"),
+            );
+        }
+    }
+
+    fn endpoint_error(method: FixedStepRkMethods, step: f64) -> f64 {
+        let result = rk1_4(
             |_t, y| nalgebra::SVector::<f64, 1>::new(y[0]),
-            (0.0, 0.1),
-            nalgebra::SVector::<f64, 1>::new(1.),
-            0.3,
-            FixedStepRkMethods::Rk2,
+            (0.0, 1.0),
+            nalgebra::SVector::<f64, 1>::new(1.0),
+            step,
+            method,
+        )
+        .expect("integration failed");
+
+        let actual = result.states.last().unwrap()[0];
+        let exact = 1.0_f64.exp();
+
+        (actual - exact).abs()
+    }
+
+    #[test]
+    fn check_step_convergence() {
+        for method in ALL.iter() {
+            let coarse_error = endpoint_error(*method, 0.125);
+            let fine_error = endpoint_error(*method, 0.0625);
+
+            let observed_ratio = coarse_error / fine_error;
+            let order = method.tableau().a.len() as i32;
+            let expected_ratio = 2_f64.powi(order);
+
+            assert_approx_eq(
+                observed_ratio,
+                expected_ratio,
+                expected_ratio * 0.1,
+                format!("{method:?} does not show order-{order} convergence"),
+            );
+        }
+    }
+
+    #[test]
+    fn test_non_autonomous() {
+        // the solution to y' = t with y(0) = 0 is y(t) = 1/2 t^2
+        let integration_result = rk1_4(
+            |t, _y| nalgebra::SVector::<f64, 1>::new(t),
+            (0.0, 2.0),
+            nalgebra::SVector::<f64, 1>::new(0.),
+            0.1,
+            FixedStepRkMethods::Rk4,
         )
         .expect("Rk run failed in test");
 
-        assert_approx_eq(
-            *integration_result.times.last().unwrap(),
-            0.1,
-            1e-6,
-            "Step length 0.3 does not adapt correctly to time range (0.0, 0.1).",
-        );
+        for (i, t_entry) in integration_result.times.into_iter().enumerate() {
+            // get 0 since the first entry in the vector is equal to y
+            let expected = 0.5 * t_entry.powi(2);
+            let actual = integration_result.states[i][0];
 
-        assert_approx_eq(
-            integration_result.states.last().unwrap()[0],
-            1.105, // roughly exp(0.1)
-            1e-3,
-            "State is wrongly calculated with non-divisible step length",
-        );
+            assert_approx_eq(actual, expected, 1.0e-6, "Non autonomous ODE solve failed");
+        }
     }
-
     #[test]
     fn problem118_rksolvers() {
         // Run the complete solver and compare with the analytical result.
