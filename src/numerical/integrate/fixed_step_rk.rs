@@ -5,7 +5,7 @@ use super::structs::IntegrationResult;
 use nalgebra;
 
 #[derive(Debug, Clone, Copy)]
-pub enum FixedStepRkMethods {
+pub enum FixedStepRkMethod {
     /// First-order Runge-Kutta numerical integration
     Rk1,
     /// Second-order Runge-Kutta numerical integration
@@ -43,7 +43,7 @@ static RK4_TABLEAU: ButcherTableau = ButcherTableau {
     c: &[1. / 6., 1. / 3., 1. / 3., 1. / 6.],
 };
 
-impl FixedStepRkMethods {
+impl FixedStepRkMethod {
     fn tableau(&self) -> &'static ButcherTableau {
         match self {
             Self::Rk1 => &RK1_TABLEAU,
@@ -64,7 +64,7 @@ pub fn rk1_4<const N: usize, F>(
     y0: nalgebra::SVector<f64, N>,
     // Time step
     h: f64,
-    rk: FixedStepRkMethods,
+    rk: FixedStepRkMethod,
 ) -> Result<IntegrationResult<N>, IntegrationError<N>>
 where
     F: Fn(f64, &nalgebra::SVector<f64, N>) -> nalgebra::SVector<f64, N>,
@@ -146,14 +146,14 @@ where
 #[cfg(test)]
 mod tests {
 
-    const ALL: [FixedStepRkMethods; 4] = [
-        FixedStepRkMethods::Rk1,
-        FixedStepRkMethods::Rk2,
-        FixedStepRkMethods::Rk3,
-        FixedStepRkMethods::Rk4,
+    const ALL: [FixedStepRkMethod; 4] = [
+        FixedStepRkMethod::Rk1,
+        FixedStepRkMethod::Rk2,
+        FixedStepRkMethod::Rk3,
+        FixedStepRkMethod::Rk4,
     ];
 
-    // we test some of the private components in this module (i.e. the FixedStepRkMethods)
+    // we test some of the private components in this module (i.e. the FixedStepRkMethod)
     use super::*;
     use crate::test_utils::assert_approx_eq;
 
@@ -234,7 +234,7 @@ mod tests {
         }
     }
 
-    fn endpoint_error(method: FixedStepRkMethods, step: f64) -> f64 {
+    fn endpoint_error(method: FixedStepRkMethod, step: f64) -> f64 {
         let result = rk1_4(
             |_t, y| nalgebra::SVector::<f64, 1>::new(y[0]),
             (0.0, 1.0),
@@ -277,7 +277,7 @@ mod tests {
             (0.0, 2.0),
             nalgebra::SVector::<f64, 1>::new(0.),
             0.1,
-            FixedStepRkMethods::Rk4,
+            FixedStepRkMethod::Rk4,
         )
         .expect("Rk run failed in test");
 
@@ -305,7 +305,7 @@ mod tests {
             (0.0, 20.0),
             nalgebra::SVector::<f64, 4>::new(1., 0., 0., 0.),
             0.01,
-            FixedStepRkMethods::Rk4,
+            FixedStepRkMethod::Rk4,
         )
         .expect("Rk run failed in test");
 
@@ -332,7 +332,7 @@ mod tests {
             (0.0, 20.0),
             nalgebra::SVector::<f64, 2>::new(1., 0.),
             0.01,
-            FixedStepRkMethods::Rk4,
+            FixedStepRkMethod::Rk4,
         )
         .expect("Rk run failed in test");
 
