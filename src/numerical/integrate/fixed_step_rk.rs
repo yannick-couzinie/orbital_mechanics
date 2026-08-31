@@ -289,6 +289,7 @@ mod tests {
             assert_approx_eq(actual, expected, 1.0e-6, "Non autonomous ODE solve failed");
         }
     }
+
     #[test]
     fn problem118_rksolvers() {
         // Run the complete solver and compare with the analytical result.
@@ -318,6 +319,33 @@ mod tests {
                 expected,
                 1.0e-6,
                 format!("problem 1.18 failed using Rk4 at step {i}, t={t_entry}"),
+            );
+        }
+    }
+
+    #[test]
+    fn harmonic_oscillator() {
+        // The harmonic oscillator is d2x/dt2 = -x, so three dimensional with no v component (no v
+        // damping)
+        let integration_result = rk1_4(
+            |_t, y| nalgebra::SVector::<f64, 2>::new(y[1], -y[0]),
+            (0.0, 20.0),
+            nalgebra::SVector::<f64, 2>::new(1., 0.),
+            0.01,
+            FixedStepRkMethods::Rk4,
+        )
+        .expect("Rk run failed in test");
+
+        for (i, t_entry) in integration_result.times.into_iter().enumerate() {
+            // we get cos since the initial condition is 1, i.e. the offset from sin is pi/2
+            let expected = t_entry.cos();
+            let actual = integration_result.states[i][0];
+
+            assert_approx_eq(
+                actual,
+                expected,
+                1.0e-6,
+                "Could not solve harmonic oscillator correctly.",
             );
         }
     }
