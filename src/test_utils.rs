@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 #[track_caller]
-pub fn assert_approx_eq(actual: f64, expected: f64, tolerance: f64, context: impl Display) {
+pub(crate) fn assert_approx_eq(actual: f64, expected: f64, tolerance: f64, context: impl Display) {
     let error = (actual - expected).abs();
 
     assert!(

@@ -1,4 +1,4 @@
-//! One-dimensional Runge-Kutta numerical integration with methods from Rk1 to Rk4.
+//! Runge-Kutta numerical integration with methods from Rk1 to Rk4.
 
 use super::errors::IntegrationError;
 use super::structs::IntegrationResult;
@@ -123,7 +123,7 @@ where
                 return Err(IntegrationError::NonFiniteDerivative {
                     derivative: f_eval,
                     state: y_inner,
-                    time: t,
+                    time: t_inner,
                 });
             }
 
@@ -135,6 +135,11 @@ where
             y.axpy(step_h * tableau.c[i], f_entry, 1.0)
         }
         tout.push(t);
+
+        if !y.iter().all(|x| x.is_finite()) {
+            return Err(IntegrationError::NonFiniteState { state: y });
+        }
+
         yout.push(y);
     }
     Ok(IntegrationResult {
@@ -325,8 +330,7 @@ mod tests {
 
     #[test]
     fn harmonic_oscillator() {
-        // The harmonic oscillator is d2x/dt2 = -x, so three dimensional with no v component (no v
-        // damping)
+        // The harmonic oscillator is d2x/dt2 = -x
         let integration_result = rk1_4(
             |_t, y| nalgebra::SVector::<f64, 2>::new(y[1], -y[0]),
             (0.0, 20.0),

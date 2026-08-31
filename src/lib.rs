@@ -1,4 +1,4 @@
 pub mod numerical;
 
-#[doc(hidden)]
-pub mod test_utils;
+#[cfg(test)]
+pub(crate) mod test_utils;
