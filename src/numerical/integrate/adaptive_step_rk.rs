@@ -1,67 +1,64 @@
-//! Runge-Kutta numerical integration with methods from Rk1 to Rk4.
+//! Runge-Kutta-Fehlberg adaptive step integration.
 
 use super::Integrator;
-use super::rk_utils::{calculate_stages, combine_stages}
 use super::errors::IntegrationError;
+use super::rk_utils::{calculate_stages, combine_stages};
 use super::structs::IntegrationResult;
 use nalgebra;
 
-pub struct FixedStepRk {
+pub struct AdaptiveRkParameters {
     pub step: f64,
-    pub method: FixedStepRkMethod,
+    pub method: AdaptiveStepRkMethod,
+    pub tolerance: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum FixedStepRkMethod {
-    /// First-order Runge-Kutta numerical integration
-    Rk1,
-    /// Second-order Runge-Kutta numerical integration
-    Rk2,
-    /// Third-order Runge-Kutta numerical integration
-    Rk3,
-    /// Fourth-order Runge-Kutta numerical integration
-    Rk4,
+pub enum AdaptiveStepRkMethod {
+    Rkf45,
 }
 
 struct ButcherTableau {
     a: &'static [f64],
     b: &'static [&'static [f64]],
-    c: &'static [f64],
+    c1: &'static [f64],
+    c2: &'static [f64],
 }
 
-static RK1_TABLEAU: ButcherTableau = ButcherTableau {
-    a: &[0.],
-    b: &[&[0.]],
-    c: &[1.],
-};
-static RK2_TABLEAU: ButcherTableau = ButcherTableau {
-    a: &[0., 1.],
-    b: &[&[0.], &[1.0]],
-    c: &[0.5, 0.5],
-};
-static RK3_TABLEAU: ButcherTableau = ButcherTableau {
-    a: &[0., 0.5, 1.],
-    b: &[&[0., 0.], &[0.5, 0.], &[-1., 2.]],
-    c: &[1. / 6., 2. / 3., 1. / 6.],
-};
-static RK4_TABLEAU: ButcherTableau = ButcherTableau {
-    a: &[0., 0.5, 0.5, 1.],
-    b: &[&[0., 0., 0.], &[0.5, 0., 0.], &[0., 0.5, 0.], &[0., 0., 1.]],
-    c: &[1. / 6., 1. / 3., 1. / 3., 1. / 6.],
+static RK45_TABLEAU: ButcherTableau = ButcherTableau {
+    a: &[0., 1. / 4., 3. / 8., 12. / 13., 1., 1. / 2.],
+    b: &[
+        &[0., 0., 0., 0., 0.],
+        &[1. / 4., 0., 0., 0., 0.],
+        &[3. / 32., 9. / 32., 0., 0., 0.],
+        &[1932. / 2197., -7200. / 2197., 7296. / 2197., 0., 0.],
+        &[439. / 216., -8., 3680. / 513., -845. / 4104., 0.],
+        &[-8. / 27., 2., -3544. / 2565., 1859. / 4104., -11. / 40.],
+    ],
+    c1: &[25. / 216., 0., 1408. / 2565., 2197. / 4104., -1. / 5., 0.],
+    c2: &[
+        16. / 135.,
+        0.,
+        6656. / 12825.,
+        28561. / 56430.,
+        -9. / 50.,
+        2. / 55.,
+    ],
 };
 
-impl FixedStepRkMethod {
+impl AdaptiveStepRkMethod {
     fn tableau(&self) -> &'static ButcherTableau {
         match self {
-            Self::Rk1 => &RK1_TABLEAU,
-            Self::Rk2 => &RK2_TABLEAU,
-            Self::Rk3 => &RK3_TABLEAU,
-            Self::Rk4 => &RK4_TABLEAU,
+            Self::Rkf45 => &RK45_TABLEAU,
+        }
+    }
+    fn power(&self) -> f64 {
+        match self {
+            Self::Rkf45 => 4.,
         }
     }
 }
 
-impl Integrator for FixedStepRk {
+impl Integrator for AdaptiveRkParameters {
     fn integrate<const N: usize, F>(
         &self,
         // The function to integrate, the input and output vector sizes (y) need to be the same, the
@@ -78,7 +75,6 @@ impl Integrator for FixedStepRk {
     {
         let t0 = tspan.0;
         let tf = tspan.1;
-        let mut step_h = self.step;
         let mut t = t0;
         let mut y = y0;
         let mut tout = vec![t];
@@ -100,11 +96,12 @@ impl Integrator for FixedStepRk {
             return Err(IntegrationError::NonFiniteState { state: y0 });
         }
 
+        let mut step_h = self.step;
+
         while t < tf {
             let ti = t;
-
             step_h = step_h.min(tf - t);
-
+            let mut error: f64;
             // make sure that t is not that big that the step gets eaten up in floating point precision
             if t + step_h == t {
                 return Err(IntegrationError::StepDoesNotAdvanceTime {
@@ -113,24 +110,38 @@ impl Integrator for FixedStepRk {
                 });
             }
 
-            calculate_stages(
-                &mut stages,
-                y,
-                ti,
-                step_h,
-                tableau.a,
-                tableau.b,
-                &ode_function,
-            )?;
+            loop {
+                calculate_stages(
+                    &mut stages,
+                    y,
+                    ti,
+                    step_h,
+                    tableau.a,
+                    tableau.b,
+                    &ode_function,
+                )?;
+
+                let y_low_dim = combine_stages(&stages, y, step_h, tableau.c1);
+                let y_high_dim = combine_stages(&stages, y, step_h, tableau.c2);
+
+                error = (y_high_dim - y_low_dim).abs().max();
+
+                // this increases the step if error < tolerance
+                step_h *= 0.8 * (self.tolerance / error).powf(1. / (self.method.power() + 1.0));
+
+                if error < self.tolerance {
+                    y = y_high_dim;
+                    break;
+                }
+            }
 
             t += step_h;
-
-            for (i, f_entry) in stages.iter().enumerate() {
-                y.axpy(step_h * tableau.c[i], f_entry, 1.0)
-            }
             tout.push(t);
 
-            let y = combine_stages(&stages, y, step_h, tableau.c);
+            if !y.iter().all(|x| x.is_finite()) {
+                return Err(IntegrationError::NonFiniteState { state: y });
+            }
+
             yout.push(y);
         }
         Ok(IntegrationResult {
