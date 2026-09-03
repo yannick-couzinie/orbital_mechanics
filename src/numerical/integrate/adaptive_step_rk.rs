@@ -135,8 +135,7 @@ impl Integrator for AdaptiveRkParameters {
                     return Err(IntegrationError::NonFiniteError { error });
                 }
 
-                // use 5.0 as a stand-in this means that factor is non-continuous in the error but
-                // that is inherently so if error = 0
+                // when error = 0 use 5.0 as a replacement for infinity
                 let factor = if error == 0.0 {
                     5.0
                 } else {

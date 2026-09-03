@@ -5,7 +5,7 @@ use snafu::Snafu;
 pub enum IntegrationError<const N: usize> {
     #[snafu(display("invalid integration step size: {step}"))]
     InvalidStepSize { step: f64 },
-    #[snafu(display("Supply non-zero, positive, finite tolerance and c2 vector for RKF45."))]
+    #[snafu(display("Supply non-zero, positive, finite tolerance RKF45."))]
     AdaptiveParametersIncomplete {},
     #[snafu(display("The error has become non finite during integration {error}"))]
     NonFiniteError { error: f64 },
