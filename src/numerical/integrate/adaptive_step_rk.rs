@@ -96,6 +96,11 @@ impl Integrator for AdaptiveRkParameters {
             return Err(IntegrationError::NonFiniteState { state: y0 });
         }
 
+        if !self.tolerance.is_finite() || self.tolerance == 0. || self.tolerance.is_sign_negative()
+        {
+            return Err(IntegrationError::AdaptiveParametersIncomplete {});
+        }
+
         let mut step_h = self.step;
 
         while t < tf {
@@ -126,17 +131,30 @@ impl Integrator for AdaptiveRkParameters {
 
                 error = (y_high_dim - y_low_dim).abs().max();
 
-                // this increases the step if error < tolerance
-                step_h *= 0.8 * (self.tolerance / error).powf(1. / (self.method.power() + 1.0));
+                if !error.is_finite() {
+                    return Err(IntegrationError::NonFiniteError { error });
+                }
+
+                // use 5.0 as a stand-in this means that factor is non-continuous in the error but
+                // that is inherently so if error = 0
+                let factor = if error == 0.0 {
+                    5.0
+                } else {
+                    0.8 * (self.tolerance / error).powf(1.0 / (self.method.power() + 1.0))
+                };
 
                 if error < self.tolerance {
+                    t += step_h;
+                    tout.push(t);
                     y = y_high_dim;
+                    // this increases the step if error < tolerance
+                    step_h *= factor;
                     break;
+                } else {
+                    // if you do not break update the step which effectively reduces it
+                    step_h *= factor;
                 }
             }
-
-            t += step_h;
-            tout.push(t);
 
             if !y.iter().all(|x| x.is_finite()) {
                 return Err(IntegrationError::NonFiniteState { state: y });
@@ -171,194 +189,159 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_c_coefficients_sum() {
-    //     // see page 40 from Curtis on the top, each sum of c needs tob e 1 and each row of b equals
-    //     // the value of that row in a.
-    //     for rk_type in ALL.iter() {
-    //         let c_coefficient_sum: f64 = rk_type.tableau().c.iter().sum();
-    //         assert_approx_eq(
-    //             c_coefficient_sum,
-    //             1.0,
-    //             1.0e-6,
-    //             format!("c coefficients do not sum to one for {rk_type:?}"),
-    //         );
-    //     }
-    // }
-    //
-    // #[test]
-    // fn test_ab_coefficients_sum() {
-    //     // see page 40 from Curtis on the top, each sum of c needs tob e 1 and each row of b equals
-    //     // the value of that row in a.
-    //     for rk_type in ALL.iter() {
-    //         for (i, a_row) in rk_type.tableau().a.iter().enumerate() {
-    //             let b_row_coefficient_sum: f64 = rk_type.tableau().b[i].iter().sum();
-    //             assert_approx_eq(
-    //                 b_row_coefficient_sum,
-    //                 *a_row,
-    //                 1.0e-6,
-    //                 format!("b row {i} does not sum to a[{i}] for {rk_type:?}"),
-    //             );
-    //         }
-    //     }
-    // }
-    //
-    // #[test]
-    // fn check_non_divisible_step_length() {
-    //     // check that with a step length that is not divisible by the time range we correctly adapt
-    //     // the last step
-    //     for (rk_type, expected) in std::iter::zip(ALL.iter(), [1.1, 1.105, 1.105, 1.105].iter()) {
-    //         let integrator = FixedStepRk {
-    //             step: 0.3,
-    //             method: *rk_type,
-    //         };
-    //
-    //         let integration_result = integrator
-    //             .integrate(
-    //                 |_t, y| nalgebra::SVector::<f64, 1>::new(y[0]),
-    //                 (0.0, 0.1),
-    //                 nalgebra::SVector::<f64, 1>::new(1.),
-    //             )
-    //             .expect("Rk run failed in test");
-    //
-    //         assert_approx_eq(
-    //             *integration_result.times.last().unwrap(),
-    //             0.1,
-    //             1e-6,
-    //             format!("{rk_type:?}: State is wrongly calculated with non-divisible step length"),
-    //         );
-    //
-    //         assert_approx_eq(
-    //             integration_result.states.last().unwrap()[0],
-    //             *expected, // roughly exp(0.1)
-    //             1e-3,
-    //             format!("{rk_type:?}: State is wrongly calculated with non-divisible step length"),
-    //         );
-    //     }
-    // }
-    //
-    // fn endpoint_error(method: FixedStepRkMethod, step: f64) -> f64 {
-    //     let integrator = FixedStepRk { step, method };
-    //
-    //     let result = integrator
-    //         .integrate(
-    //             |_t, y| nalgebra::SVector::<f64, 1>::new(y[0]),
-    //             (0.0, 1.0),
-    //             nalgebra::SVector::<f64, 1>::new(1.0),
-    //         )
-    //         .expect("integration failed");
-    //
-    //     let actual = result.states.last().unwrap()[0];
-    //     let exact = 1.0_f64.exp();
-    //
-    //     (actual - exact).abs()
-    // }
-    //
-    // #[test]
-    // fn check_step_convergence() {
-    //     for method in ALL.iter() {
-    //         let coarse_error = endpoint_error(*method, 0.125);
-    //         let fine_error = endpoint_error(*method, 0.0625);
-    //
-    //         let observed_ratio = coarse_error / fine_error;
-    //         let order = method.tableau().a.len() as i32;
-    //         let expected_ratio = 2_f64.powi(order);
-    //
-    //         assert_approx_eq(
-    //             observed_ratio,
-    //             expected_ratio,
-    //             expected_ratio * 0.1,
-    //             format!("{method:?} does not show order-{order} convergence"),
-    //         );
-    //     }
-    // }
-    //
-    // #[test]
-    // fn test_non_autonomous() {
-    //     // the solution to y' = t with y(0) = 0 is y(t) = 1/2 t^2
-    //     let integrator = FixedStepRk {
-    //         step: 0.1,
-    //         method: FixedStepRkMethod::Rk4,
-    //     };
-    //     let integration_result = integrator
-    //         .integrate(
-    //             |t, _y| nalgebra::SVector::<f64, 1>::new(t),
-    //             (0.0, 2.0),
-    //             nalgebra::SVector::<f64, 1>::new(0.),
-    //         )
-    //         .expect("Rk run failed in test");
-    //
-    //     for (i, t_entry) in integration_result.times.into_iter().enumerate() {
-    //         // get 0 since the first entry in the vector is equal to y
-    //         let expected = 0.5 * t_entry.powi(2);
-    //         let actual = integration_result.states[i][0];
-    //
-    //         assert_approx_eq(actual, expected, 1.0e-6, "Non autonomous ODE solve failed");
-    //     }
-    // }
-    //
-    // #[test]
-    // fn problem118_rksolvers() {
-    //     // Run the complete solver and compare with the analytical result.
-    //     // this is the first order ssytem for d4y/dt4 + 2d2y/dt2 + y = 0 with initial conditions y=1 and
-    //     // dy/dt = d2y/dt2 = d3y/dt3 = 0 at t=0 solved for y(20) which should result in 9.545
-    //     // the analytical solution is actually t.cos() + (t / 2.0) * t.sin() so we can compare against
-    //     // that
-    //     //
-    //     // run the tests only for Rk4 as that should be proof enough that the solvers work, and getting
-    //     // the same accuracy on Rk1 would require thousand-fold of steps
-    //     let integrator = FixedStepRk {
-    //         step: 0.01,
-    //         method: FixedStepRkMethod::Rk4,
-    //     };
-    //     let integration_result = integrator
-    //         .integrate(
-    //             |_t, y| nalgebra::SVector::<f64, 4>::new(y[1], y[2], y[3], -y[0] - 2.0 * y[2]),
-    //             (0.0, 20.0),
-    //             nalgebra::SVector::<f64, 4>::new(1., 0., 0., 0.),
-    //         )
-    //         .expect("Rk run failed in test");
-    //
-    //     for (i, t_entry) in integration_result.times.into_iter().enumerate() {
-    //         // get 0 since the first entry in the vector is equal to y
-    //         let expected = t_entry.cos() + (t_entry * 0.5 * t_entry.sin());
-    //         let actual = integration_result.states[i][0];
-    //
-    //         assert_approx_eq(
-    //             actual,
-    //             expected,
-    //             1.0e-6,
-    //             format!("problem 1.18 failed using Rk4 at step {i}, t={t_entry}"),
-    //         );
-    //     }
-    // }
-    //
-    // #[test]
-    // fn harmonic_oscillator() {
-    //     // The harmonic oscillator is d2x/dt2 = -x
-    //     let integrator = FixedStepRk {
-    //         step: 0.01,
-    //         method: FixedStepRkMethod::Rk4,
-    //     };
-    //     let integration_result = integrator
-    //         .integrate(
-    //             |_t, y| nalgebra::SVector::<f64, 2>::new(y[1], -y[0]),
-    //             (0.0, 20.0),
-    //             nalgebra::SVector::<f64, 2>::new(1., 0.),
-    //         )
-    //         .expect("Rk run failed in test");
-    //
-    //     for (i, t_entry) in integration_result.times.into_iter().enumerate() {
-    //         // we get cos since the initial condition is 1, i.e. the offset from sin is pi/2
-    //         let expected = t_entry.cos();
-    //         let actual = integration_result.states[i][0];
-    //
-    //         assert_approx_eq(
-    //             actual,
-    //             expected,
-    //             1.0e-6,
-    //             "Could not solve harmonic oscillator correctly.",
-    //         );
-    //     }
-    // }
+    #[test]
+    fn test_c_coefficients_sum() {
+        // see page 40 from Curtis on the top, each sum of c needs to be 1 and each row of b equals
+        // the value of that row in a.
+        let c_coefficient_sum: f64 = RK45_TABLEAU.c1.iter().sum();
+        assert_approx_eq(
+            c_coefficient_sum,
+            1.0,
+            1.0e-6,
+            "c1 coefficients do not sum to one for RK45",
+        );
+
+        let c_coefficient_sum: f64 = RK45_TABLEAU.c2.iter().sum();
+        assert_approx_eq(
+            c_coefficient_sum,
+            1.0,
+            1.0e-6,
+            "c2 coefficients do not sum to one for RK45",
+        );
+    }
+
+    #[test]
+    fn test_ab_coefficients_sum() {
+        // see page 40 from Curtis on the top, each sum of c needs to be 1 and each row of b equals
+        // the value of that row in a.
+        for (i, a_row) in RK45_TABLEAU.a.iter().enumerate() {
+            let b_row_coefficient_sum: f64 = RK45_TABLEAU.b[i].iter().sum();
+            assert_approx_eq(
+                b_row_coefficient_sum,
+                *a_row,
+                1.0e-6,
+                format!("b row {i} does not sum to a[{i}] for RK45"),
+            );
+        }
+    }
+
+    #[test]
+    fn test_large_step() {
+        // exponential equation solved with large step will reduce the step first
+        let integrator = AdaptiveRkParameters {
+            step: 10.,
+            method: AdaptiveStepRkMethod::Rkf45,
+            tolerance: 1e-12,
+        };
+        let integration_result = integrator
+            .integrate(
+                |_t, y| nalgebra::SVector::<f64, 1>::new(y[0]),
+                (0.0, 12.0),
+                nalgebra::SVector::<f64, 1>::new(1.),
+            )
+            .expect("Rk run failed in test");
+
+        // assert the step size was reduced
+        assert!(integration_result.times[1] - integration_result.times[0] < 10.);
+
+        for (i, t_entry) in integration_result.times.into_iter().enumerate() {
+            // get 0 since the first entry in the vector is equal to y
+            let expected = t_entry.exp();
+            let actual = integration_result.states[i][0];
+
+            assert_approx_eq(actual, expected, 1.0e-6, "Non autonomous ODE solve failed");
+        }
+    }
+
+    #[test]
+    fn test_non_autonomous() {
+        // the solution to y' = t with y(0) = 0 is y(t) = 1/2 t^2
+        let integrator = AdaptiveRkParameters {
+            step: 0.1,
+            method: AdaptiveStepRkMethod::Rkf45,
+            tolerance: 1e-10,
+        };
+        let integration_result = integrator
+            .integrate(
+                |t, _y| nalgebra::SVector::<f64, 1>::new(t),
+                (0.0, 2.0),
+                nalgebra::SVector::<f64, 1>::new(0.),
+            )
+            .expect("Rk run failed in test");
+
+        for (i, t_entry) in integration_result.times.into_iter().enumerate() {
+            // get 0 since the first entry in the vector is equal to y
+            let expected = 0.5 * t_entry.powi(2);
+            let actual = integration_result.states[i][0];
+
+            assert_approx_eq(actual, expected, 1.0e-6, "Non autonomous ODE solve failed");
+        }
+    }
+
+    #[test]
+    fn problem118_rksolvers() {
+        // Run the complete solver and compare with the analytical result.
+        // this is the first order ssytem for d4y/dt4 + 2d2y/dt2 + y = 0 with initial conditions y=1 and
+        // dy/dt = d2y/dt2 = d3y/dt3 = 0 at t=0 solved for y(20) which should result in 9.545
+        // the analytical solution is actually t.cos() + (t / 2.0) * t.sin() so we can compare against
+        // that
+        //
+        // run the tests only for Rk4 as that should be proof enough that the solvers work, and getting
+        // the same accuracy on Rk1 would require thousand-fold of steps
+        let integrator = AdaptiveRkParameters {
+            step: 0.01,
+            tolerance: 1e-10,
+            method: AdaptiveStepRkMethod::Rkf45,
+        };
+        let integration_result = integrator
+            .integrate(
+                |_t, y| nalgebra::SVector::<f64, 4>::new(y[1], y[2], y[3], -y[0] - 2.0 * y[2]),
+                (0.0, 20.0),
+                nalgebra::SVector::<f64, 4>::new(1., 0., 0., 0.),
+            )
+            .expect("Rk run failed in test");
+
+        for (i, t_entry) in integration_result.times.into_iter().enumerate() {
+            // get 0 since the first entry in the vector is equal to y
+            let expected = t_entry.cos() + (t_entry * 0.5 * t_entry.sin());
+            let actual = integration_result.states[i][0];
+
+            assert_approx_eq(
+                actual,
+                expected,
+                1.0e-6,
+                format!("problem 1.18 failed using Rk4 at step {i}, t={t_entry}"),
+            );
+        }
+    }
+
+    #[test]
+    fn harmonic_oscillator() {
+        // The harmonic oscillator is d2x/dt2 = -x
+        let integrator = AdaptiveRkParameters {
+            step: 0.01,
+            tolerance: 1e-10,
+            method: AdaptiveStepRkMethod::Rkf45,
+        };
+        let integration_result = integrator
+            .integrate(
+                |_t, y| nalgebra::SVector::<f64, 2>::new(y[1], -y[0]),
+                (0.0, 20.0),
+                nalgebra::SVector::<f64, 2>::new(1., 0.),
+            )
+            .expect("Rk run failed in test");
+
+        for (i, t_entry) in integration_result.times.into_iter().enumerate() {
+            // we get cos since the initial condition is 1, i.e. the offset from sin is pi/2
+            let expected = t_entry.cos();
+            let actual = integration_result.states[i][0];
+
+            assert_approx_eq(
+                actual,
+                expected,
+                1.0e-6,
+                "Could not solve harmonic oscillator correctly.",
+            );
+        }
+    }
 }

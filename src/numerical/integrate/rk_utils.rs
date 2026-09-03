@@ -17,8 +17,8 @@ where
     stages.clear();
 
     // evaluate the time derivates at the 'n_stages' points within the current interval
-    for i in 0..a.len() {
-        let t_inner = t + a.get(i).unwrap() * step;
+    for (i, a_entry) in a.iter().enumerate() {
+        let t_inner = t + a_entry * step;
         let mut y_inner = y;
 
         for (j, f_entry) in stages.iter().enumerate() {
