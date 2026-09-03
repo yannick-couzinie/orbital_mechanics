@@ -1,8 +1,8 @@
 //! Runge-Kutta numerical integration with methods from Rk1 to Rk4.
 
 use super::Integrator;
-use super::rk_utils::{calculate_stages, combine_stages}
 use super::errors::IntegrationError;
+use super::rk_utils::{calculate_stages, combine_stages};
 use super::structs::IntegrationResult;
 use nalgebra;
 
@@ -125,12 +125,9 @@ impl Integrator for FixedStepRk {
 
             t += step_h;
 
-            for (i, f_entry) in stages.iter().enumerate() {
-                y.axpy(step_h * tableau.c[i], f_entry, 1.0)
-            }
             tout.push(t);
 
-            let y = combine_stages(&stages, y, step_h, tableau.c);
+            y = combine_stages(&stages, y, step_h, tableau.c);
             yout.push(y);
         }
         Ok(IntegrationResult {
