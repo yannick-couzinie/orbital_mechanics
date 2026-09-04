@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn problem119() {
-        // This is the first order ssytem for d3y/dt3 + 3d2y/dt2 - 4dy/t - 12 y = t exp(2t)
+        // This is the first order ssytem for d3y/dt3 + 3d2y/dt2 - 4dy/dt - 12 y = t exp(2t)
         // with initial conditions t=0 and y=dy/dt=d2y/dt2=0
         //
         // The text book gives y(3) = 66.62 as an answer to compare to.
