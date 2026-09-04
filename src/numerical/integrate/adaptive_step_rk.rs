@@ -343,4 +343,36 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn problem119() {
+        // This is the first order ssytem for d3y/dt3 + 3d2y/dt2 - 4dy/t - 12 y = t exp(2t)
+        // with initial conditions t=0 and y=dy/dt=d2y/dt2=0
+        //
+        // The text book gives y(3) = 66.62 as an answer to compare to.
+        let integrator = AdaptiveRkParameters {
+            step: 0.01,
+            tolerance: 1e-10,
+            method: AdaptiveStepRkMethod::Rkf45,
+        };
+        let integration_result = integrator
+            .integrate(
+                |t, y| {
+                    nalgebra::SVector::<f64, 3>::new(
+                        y[1],
+                        y[2],
+                        t * (2. * t).exp() + 12. * y[0] + 4. * y[1] - 3. * y[2],
+                    )
+                },
+                (0.0, 3.0),
+                nalgebra::SVector::<f64, 3>::new(0., 0., 0.),
+            )
+            .expect("Rk run failed in test");
+
+        // get 0 since the first entry in the vector is equal to y
+        let expected = 66.62;
+        let actual = integration_result.states.last().unwrap()[0];
+
+        assert_approx_eq(actual, expected, 1.0e-2, "problem 1.19 failed");
+    }
 }
