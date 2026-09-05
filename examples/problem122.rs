@@ -46,17 +46,6 @@ fn calculate_final_radius(
     Ok(integration_result.states.last().unwrap()[0])
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Define the differential equation.
-    // Run the integrator.
-    // Print the final state.
-    // Write time, x, y, and z to CSV.
-    // Numerically solve the system dot(x) + 1/2 y - z = 0, -1/2 x + dot(y) + 1/sqrt(2) z = 0,
-    // 1/2 x - 1/sqrt(2) y + dot(z) = 0 to obtain x , y and z at t = 20. The initial conditions
-    // are x = 1 and y = z = 0 at t = 0. {Ans.: x(20) = 0.704, y(20) = 0.665, z(20) = -0.246}.
-    //
-    // The book forgets the 1/2 in the first equation it should read dot(x) + 1/2 (y - z) then
-    // the system is skew symmetric A^\mathsf{T}=-A and thus we have that x^2 + y^2 + z^2 = 1,
-    // i.e. it rotates the vector only no length change.
     let integrator = AdaptiveRkParameters {
         step: 20.0,
         tolerance: 1e-6,

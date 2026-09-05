@@ -1,0 +1,8 @@
+[project]
+name = "examples"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [{ name = "Yannick Couzinie", email = "couzinie@axelspace.com" }]
+requires-python = ">=3.14"
+dependencies = ["pandas>=3.0.5", "plotly>=7.0.0"]

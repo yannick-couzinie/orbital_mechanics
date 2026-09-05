@@ -1,1 +1,9 @@
 /target
+**/artifacts/
+
+examples/uv.lock
+examples/.python-version
+
+__pycache__/
+*.py[cod]
+.venv/
