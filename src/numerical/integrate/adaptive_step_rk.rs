@@ -375,4 +375,28 @@ mod tests {
 
         assert_approx_eq(actual, expected, 1.0e-2, "problem 1.19 failed");
     }
+
+    #[test]
+    fn problem120() {
+        // Numerically solve the differential equation t ddot(y) + t^2 dot(y) - 2 y = 0 to obtain y
+        // at t = 4 if the initial conditions are y = 0 and dot(y) = 1 at t = 1 {Ans.: y(4) = 1.29}
+        let integrator = AdaptiveRkParameters {
+            step: 0.1,
+            tolerance: 1e-10,
+            method: AdaptiveStepRkMethod::Rkf45,
+        };
+        let integration_result = integrator
+            .integrate(
+                |t, y| nalgebra::SVector::<f64, 2>::new(y[1], -t * y[1] + 2. * y[0] / t),
+                (1.0, 4.0),
+                nalgebra::SVector::<f64, 2>::new(0., 1.),
+            )
+            .expect("Rk run failed in test");
+
+        // get 0 since the first entry in the vector is equal to y
+        let expected = 1.29;
+        let actual = integration_result.states.last().unwrap()[0];
+
+        assert_approx_eq(actual, expected, 1.0e-2, "problem 1.20 failed");
+    }
 }
