@@ -11,7 +11,7 @@
 //! see the now-famous "Lorenz attractor".
 
 const SIGMA: f64 = 10.;
-const RHO: f64 = 150.;
+const RHO: f64 = 28.;
 const BETA: f64 = 8. / 3.;
 
 use curtis_orbital_mechanics::numerical::integrate::{
