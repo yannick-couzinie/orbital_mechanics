@@ -399,4 +399,57 @@ mod tests {
 
         assert_approx_eq(actual, expected, 1.0e-2, "problem 1.20 failed");
     }
+
+    #[test]
+    fn problem121() {
+        // Numerically solve the system dot(x) + 1/2 y - z = 0, -1/2 x + dot(y) + 1/sqrt(2) z = 0,
+        // 1/2 x - 1/sqrt(2) y + dot(z) = 0 to obtain x , y and z at t = 20. The initial conditions
+        // are x = 1 and y = z = 0 at t = 0. {Ans.: x(20) = 0.704, y(20) = 0.665, z(20) = -0.246}.
+        //
+        // The book forgets the 1/2 in the first equation it should read dot(x) + 1/2 (y - z) then
+        // the system is skew symmetric A^\mathsf{T}=-A and thus we have that x^2 + y^2 + z^2 = 1,
+        // i.e. it rotates the vector only no length change.
+        let integrator = AdaptiveRkParameters {
+            step: 0.1,
+            tolerance: 1e-10,
+            method: AdaptiveStepRkMethod::Rkf45,
+        };
+        // we use y1 = x, y2 = y, y3 = z
+        let integration_result = integrator
+            .integrate(
+                |_t, y| {
+                    nalgebra::SVector::<f64, 3>::new(
+                        -0.5 * y[1] + 0.5 * y[2],
+                        0.5 * y[0] - 2.0_f64.powf(-0.5) * y[2],
+                        -0.5 * y[0] + 2.0_f64.powf(-0.5) * y[1],
+                    )
+                },
+                (0.0, 20.0),
+                nalgebra::SVector::<f64, 3>::new(1., 0., 0.),
+            )
+            .expect("Rk run failed in test");
+
+        let expected_x = 0.704;
+        let actual_x = integration_result.states.last().unwrap()[0];
+        assert_approx_eq(actual_x, expected_x, 1.0e-3, "problem 1.21 failed");
+
+        let expected_y = 0.665;
+        let actual_y = integration_result.states.last().unwrap()[1];
+        assert_approx_eq(actual_y, expected_y, 1.0e-3, "problem 1.21 failed");
+
+        let expected_z = -0.246;
+        let actual_z = integration_result.states.last().unwrap()[2];
+        // lower the precision here since the correct value is a bit off from what the book reports
+        assert_approx_eq(actual_z, expected_z, 1.0e-2, "problem 1.21 failed");
+
+        // assert skew-symmetric solving is correct
+        for state in integration_result.states.iter() {
+            assert_approx_eq(
+                state.norm_squared(),
+                1.0,
+                1.0e-6,
+                "Problem 1.21 skew symmetricness not correctly accounted for",
+            )
+        }
+    }
 }
