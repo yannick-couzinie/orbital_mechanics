@@ -21,9 +21,9 @@ impl ForceModel for TwoBody {
                 y[3],
                 y[4],
                 y[5],
-                -mu * y[0] / y.norm().powi(3),
-                -mu * y[1] / y.norm().powi(3),
-                -mu * y[2] / y.norm().powi(3),
+                -mu * y[0] / (y[0].powi(2) + y[1].powi(2) + y[2].powi(2)).powf(3. / 2.),
+                -mu * y[1] / (y[0].powi(2) + y[1].powi(2) + y[2].powi(2)).powf(3. / 2.),
+                -mu * y[2] / (y[0].powi(2) + y[1].powi(2) + y[2].powi(2)).powf(3. / 2.),
             )
         }
     }

@@ -5,7 +5,7 @@
 //!
 //! {Ans.: Using MATLAB's ode45, the maximum altitude 9670km at 1.66 h after t0}
 
-const R_M: f64 = 1737000.;
+const MASS_EARTH: f64 = 5.9722e24;
 
 use curtis_orbital_mechanics::numerical::integrate::adaptive_step_rk::{
     AdaptiveRkParameters, AdaptiveStepRkMethod,
@@ -25,7 +25,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         method: AdaptiveStepRkMethod::Rkf45,
     };
 
-    let force_model = TwoBody { m1: R_M, m2: 1000. };
+    let force_model = TwoBody {
+        m1: MASS_EARTH,
+        m2: 1000.,
+    };
 
     // propagate for 4 hours
     let traj = propagate::propagate(sc, &integrator, &force_model, 4. * 60. * 60.)?;
@@ -34,9 +37,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut time_of_max = 0.0;
 
     for (time, state) in std::iter::zip(traj.times, traj.states) {
-        if state.state_vector.norm() > max_val {
-            max_val = state.state_vector.norm();
-            time_of_max = time;
+        let norm = (state.state_vector[0].powi(2)
+            + state.state_vector[1].powi(2)
+            + state.state_vector[2].powi(2))
+        .sqrt();
+        if norm > max_val {
+            max_val = dbg!(norm);
+            time_of_max = dbg!(time);
         }
     }
 
