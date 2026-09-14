@@ -48,7 +48,8 @@ fn calculate_final_radius(
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let integrator = AdaptiveRkParameters {
         step: 20.0,
-        tolerance: 1e-6,
+        absolute_tolerance: 1e-3,
+        relative_tolerance: 1e-9,
         method: AdaptiveStepRkMethod::Rkf45,
     };
     // we use y1 = x, y2 = y, y3 = z

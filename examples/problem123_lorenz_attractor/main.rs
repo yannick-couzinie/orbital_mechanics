@@ -28,7 +28,8 @@ use std::{
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let integrator = AdaptiveRkParameters {
         step: 20.0,
-        tolerance: 1e-10,
+        absolute_tolerance: 1e-3,
+        relative_tolerance: 1e-9,
         method: AdaptiveStepRkMethod::Rkf45,
     };
     let integration_result = integrator.integrate(

@@ -9,7 +9,8 @@ use nalgebra;
 pub struct AdaptiveRkParameters {
     pub step: f64,
     pub method: AdaptiveStepRkMethod,
-    pub tolerance: f64,
+    pub absolute_tolerance: f64,
+    pub relative_tolerance: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -96,9 +97,10 @@ impl Integrator for AdaptiveRkParameters {
             return Err(IntegrationError::NonFiniteState { state: y0 });
         }
 
-        if !self.tolerance.is_finite() || self.tolerance == 0. || self.tolerance.is_sign_negative()
-        {
-            return Err(IntegrationError::AdaptiveParametersIncomplete {});
+        for tolerance in [self.absolute_tolerance, self.relative_tolerance] {
+            if !tolerance.is_finite() || tolerance == 0. || tolerance.is_sign_negative() {
+                return Err(IntegrationError::AdaptiveParametersIncomplete {});
+            }
         }
 
         let mut step_h = self.step;
@@ -129,7 +131,17 @@ impl Integrator for AdaptiveRkParameters {
                 let y_low_dim = combine_stages(&stages, y, step_h, tableau.c1);
                 let y_high_dim = combine_stages(&stages, y, step_h, tableau.c2);
 
-                error = (y_high_dim - y_low_dim).abs().max();
+                error = y_high_dim
+                    .iter()
+                    .zip(y_low_dim.iter())
+                    .zip(y.iter())
+                    .map(|((&high, &low), &current)| {
+                        let scale = self.absolute_tolerance
+                            + self.relative_tolerance * current.abs().max(high.abs());
+
+                        (high - low).abs() / scale
+                    })
+                    .fold(0.0_f64, f64::max);
 
                 if !error.is_finite() {
                     return Err(IntegrationError::NonFiniteError { error });
@@ -139,10 +151,10 @@ impl Integrator for AdaptiveRkParameters {
                 let factor = if error == 0.0 {
                     5.0
                 } else {
-                    0.8 * (self.tolerance / error).powf(1.0 / (self.method.power() + 1.0))
+                    0.8 * error.powf(-1.0 / (self.method.power() + 1.0))
                 };
 
-                if error < self.tolerance {
+                if error < 1.0 {
                     t += step_h;
                     tout.push(t);
                     y = y_high_dim;
@@ -230,7 +242,8 @@ mod tests {
         let integrator = AdaptiveRkParameters {
             step: 10.,
             method: AdaptiveStepRkMethod::Rkf45,
-            tolerance: 1e-12,
+            absolute_tolerance: 1e-12,
+            relative_tolerance: 1e-12,
         };
         let integration_result = integrator
             .integrate(
@@ -258,7 +271,8 @@ mod tests {
         let integrator = AdaptiveRkParameters {
             step: 0.1,
             method: AdaptiveStepRkMethod::Rkf45,
-            tolerance: 1e-10,
+            absolute_tolerance: 1e-9,
+            relative_tolerance: 1e-9,
         };
         let integration_result = integrator
             .integrate(
@@ -289,7 +303,8 @@ mod tests {
         // the same accuracy on Rk1 would require thousand-fold of steps
         let integrator = AdaptiveRkParameters {
             step: 0.01,
-            tolerance: 1e-10,
+            absolute_tolerance: 1e-9,
+            relative_tolerance: 1e-9,
             method: AdaptiveStepRkMethod::Rkf45,
         };
         let integration_result = integrator
@@ -319,7 +334,8 @@ mod tests {
         // The harmonic oscillator is d2x/dt2 = -x
         let integrator = AdaptiveRkParameters {
             step: 0.01,
-            tolerance: 1e-10,
+            absolute_tolerance: 1e-9,
+            relative_tolerance: 1e-9,
             method: AdaptiveStepRkMethod::Rkf45,
         };
         let integration_result = integrator
@@ -352,7 +368,8 @@ mod tests {
         // The text book gives y(3) = 66.62 as an answer to compare to.
         let integrator = AdaptiveRkParameters {
             step: 0.01,
-            tolerance: 1e-10,
+            absolute_tolerance: 1e-9,
+            relative_tolerance: 1e-9,
             method: AdaptiveStepRkMethod::Rkf45,
         };
         let integration_result = integrator
@@ -382,7 +399,8 @@ mod tests {
         // at t = 4 if the initial conditions are y = 0 and dot(y) = 1 at t = 1 {Ans.: y(4) = 1.29}
         let integrator = AdaptiveRkParameters {
             step: 0.1,
-            tolerance: 1e-10,
+            absolute_tolerance: 1e-9,
+            relative_tolerance: 1e-9,
             method: AdaptiveStepRkMethod::Rkf45,
         };
         let integration_result = integrator
@@ -411,7 +429,8 @@ mod tests {
         // i.e. it rotates the vector only no length change.
         let integrator = AdaptiveRkParameters {
             step: 0.1,
-            tolerance: 1e-10,
+            absolute_tolerance: 1e-9,
+            relative_tolerance: 1e-9,
             method: AdaptiveStepRkMethod::Rkf45,
         };
         // we use y1 = x, y2 = y, y3 = z

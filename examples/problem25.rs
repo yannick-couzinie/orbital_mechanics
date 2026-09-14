@@ -16,13 +16,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let integrator = AdaptiveRkParameters {
         step: 1.0,
-        tolerance: 1e-8,
+        absolute_tolerance: 1e-3,
+        relative_tolerance: 1e-9,
         method: AdaptiveStepRkMethod::Rkf45,
     };
 
     let force_model = TwoBody {
-        m1: MASS_EARTH,
-        m2: 1000.,
+        primary_mass: MASS_EARTH,
     };
 
     // propagate for 4 hours

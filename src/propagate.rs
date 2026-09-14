@@ -21,7 +21,7 @@ pub fn propagate(
     end_time: f64,
 ) -> Result<Trajectory, IntegrationError<6>> {
     let int_result = integrator.integrate(
-        force_model.ode(),
+        force_model.ode(sc.mass),
         (sc.time, end_time),
         sc.state.state_vector,
     )?;

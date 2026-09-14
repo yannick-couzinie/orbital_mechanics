@@ -5,17 +5,16 @@ use physical_constants::NEWTONIAN_CONSTANT_OF_GRAVITATION;
 
 pub trait ForceModel {
     // The ODE for this force-model
-    fn ode(&self) -> impl Fn(f64, &SVector<f64, 6>) -> SVector<f64, 6>;
+    fn ode(&self, secondary_mass: f64) -> impl Fn(f64, &SVector<f64, 6>) -> SVector<f64, 6>;
 }
 
 pub struct TwoBody {
-    pub m1: f64,
-    pub m2: f64,
+    pub primary_mass: f64,
 }
 
 impl ForceModel for TwoBody {
-    fn ode(&self) -> impl Fn(f64, &SVector<f64, 6>) -> SVector<f64, 6> {
-        let mu = NEWTONIAN_CONSTANT_OF_GRAVITATION * (self.m1 + self.m2);
+    fn ode(&self, secondary_mass: f64) -> impl Fn(f64, &SVector<f64, 6>) -> SVector<f64, 6> {
+        let mu = NEWTONIAN_CONSTANT_OF_GRAVITATION * (self.primary_mass + secondary_mass);
         move |_t, y| {
             nalgebra::SVector::<f64, 6>::new(
                 y[3],
