@@ -36,8 +36,9 @@ pub fn bisect(
     let mut upper: f64 = initial_upper;
     let mut middle: f64 = (lower + upper) / 2.0;
 
-    let flower = evaluate(&func, initial_lower)?;
-    let fupper = evaluate(&func, initial_upper)?;
+    let mut flower = evaluate(&func, initial_lower)?;
+    let mut fupper = evaluate(&func, initial_upper)?;
+    let mut fmiddle = evaluate(&func, middle)?;
     if (flower <= 0.0 && fupper <= 0.0) || (flower >= 0.0 && fupper >= 0.0) {
         return Err(RootError::RootNotBracketed { lower, upper });
     }
@@ -59,12 +60,6 @@ pub fn bisect(
     }
 
     for _ in 0..iterations {
-        let flower = evaluate(&func, lower)?;
-
-        // at first iteration this is calculated twice but we need middle in the scope outside to
-        // return it
-        middle = (lower + upper) / 2.0;
-
         if !flower.is_finite() {
             return Err(RootError::NonFiniteEvaluation {
                 input: lower,
@@ -72,7 +67,6 @@ pub fn bisect(
             });
         }
 
-        let fmiddle = evaluate(&func, middle)?;
         if !fmiddle.is_finite() {
             return Err(RootError::NonFiniteEvaluation {
                 input: middle,
@@ -82,8 +76,13 @@ pub fn bisect(
 
         if (flower >= 0.0 && fmiddle >= 0.0) || (flower <= 0.0 && fmiddle <= 0.0) {
             lower = middle;
+            flower = fmiddle;
+            middle = (lower + upper) / 2.0;
+            fmiddle = evaluate(&func, middle)?;
         } else {
             upper = middle;
+            middle = (lower + upper) / 2.0;
+            fmiddle = evaluate(&func, middle)?;
         }
     }
 
