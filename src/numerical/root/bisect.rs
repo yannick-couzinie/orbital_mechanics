@@ -34,11 +34,9 @@ pub fn bisect(
         (((initial_upper - initial_lower).abs() / tolerance).log2()).ceil() as usize;
     let mut lower: f64 = initial_lower;
     let mut upper: f64 = initial_upper;
-    let mut middle: f64 = (lower + upper) / 2.0;
 
     let mut flower = evaluate(&func, initial_lower)?;
     let fupper = evaluate(&func, initial_upper)?;
-    let mut fmiddle = evaluate(&func, middle)?;
 
     if (flower < 0.0 && fupper < 0.0) || (flower > 0.0 && fupper > 0.0) {
         return Err(RootError::RootNotBracketed { lower, upper });
@@ -59,6 +57,9 @@ pub fn bisect(
             iterations: 0,
         });
     }
+
+    let mut middle: f64 = (lower + upper) / 2.0;
+    let mut fmiddle = evaluate(&func, middle)?;
 
     for cur_iter in 0..iterations {
         if fmiddle == 0.0 {
