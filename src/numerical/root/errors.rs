@@ -20,8 +20,25 @@ pub enum RootError {
     ))]
     InvalidSearchInterval { lower: f64, upper: f64 },
 
+    #[snafu(display("The given initial guess {initial_guess} must be finite."))]
+    InvalidInitialValue { initial_guess: f64 },
+
     #[snafu(display(
         "The tolerance needs to be positive and finite, the given tolerance {tolerance} is invalid."
     ))]
     InvalidTolerance { tolerance: f64 },
+
+    #[snafu(display(
+        "The root finding algorithm did not converge, final guess {current_guess}, evaluates to {fval}."
+    ))]
+    DidNotConverge { current_guess: f64, fval: f64 },
+
+    #[snafu(display(
+        "Newtons method does not allow for zero-derivatives with non-zero function evaluations, x={input} evaluates to f(x)={fval}, f'(x)={deriv_val}."
+    ))]
+    ZeroDerivative {
+        input: f64,
+        fval: f64,
+        deriv_val: f64,
+    },
 }
