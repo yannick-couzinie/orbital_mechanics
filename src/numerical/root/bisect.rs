@@ -60,12 +60,12 @@ pub fn bisect(
         });
     }
 
-    for _ in 0..iterations {
+    for cur_iter in 0..iterations {
         if fmiddle == 0.0 {
             return Ok(RootResult {
                 root: middle,
                 residual: fmiddle.abs(),
-                iterations,
+                iterations: cur_iter,
             });
         }
         if (flower >= 0.0 && fmiddle >= 0.0) || (flower <= 0.0 && fmiddle <= 0.0) {
@@ -94,8 +94,8 @@ mod tests {
 
     #[test]
     fn test_root_in_interval() {
-        let result = bisect(|x| x.powi(2) - 1.0, 0.0, 2.0, 1e-10).unwrap();
-        assert_approx_eq(result.root, 1.0, 1e-9, "test_root_in_interval");
+        let result = bisect(|x| x.powi(2) - 2.0, 1.0, 2.0, 1e-10).unwrap();
+        assert_approx_eq(result.root, 2.0_f64.sqrt(), 1e-9, "test_root_in_interval");
     }
 
     #[test]
