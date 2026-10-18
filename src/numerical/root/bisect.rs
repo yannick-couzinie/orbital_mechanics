@@ -37,13 +37,14 @@ pub fn bisect(
     let mut middle: f64 = (lower + upper) / 2.0;
 
     let mut flower = evaluate(&func, initial_lower)?;
-    let mut fupper = evaluate(&func, initial_upper)?;
+    let fupper = evaluate(&func, initial_upper)?;
     let mut fmiddle = evaluate(&func, middle)?;
-    if (flower <= 0.0 && fupper <= 0.0) || (flower >= 0.0 && fupper >= 0.0) {
+
+    if (flower < 0.0 && fupper < 0.0) || (flower > 0.0 && fupper > 0.0) {
         return Err(RootError::RootNotBracketed { lower, upper });
     }
 
-    if flower.abs() <= tolerance {
+    if flower.abs() == 0.0 {
         return Ok(RootResult {
             root: initial_lower,
             residual: flower.abs(),
@@ -51,7 +52,7 @@ pub fn bisect(
         });
     }
 
-    if fupper.abs() <= tolerance {
+    if fupper == 0.0 {
         return Ok(RootResult {
             root: initial_upper,
             residual: fupper.abs(),
@@ -60,20 +61,13 @@ pub fn bisect(
     }
 
     for _ in 0..iterations {
-        if !flower.is_finite() {
-            return Err(RootError::NonFiniteEvaluation {
-                input: lower,
-                output: flower,
+        if fmiddle == 0.0 {
+            return Ok(RootResult {
+                root: middle,
+                residual: fmiddle.abs(),
+                iterations,
             });
         }
-
-        if !fmiddle.is_finite() {
-            return Err(RootError::NonFiniteEvaluation {
-                input: middle,
-                output: fmiddle,
-            });
-        }
-
         if (flower >= 0.0 && fmiddle >= 0.0) || (flower <= 0.0 && fmiddle <= 0.0) {
             lower = middle;
             flower = fmiddle;
@@ -88,7 +82,61 @@ pub fn bisect(
 
     Ok(RootResult {
         root: middle,
-        residual: evaluate(&func, middle)?.abs(),
+        residual: fmiddle.abs(),
         iterations,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::assert_approx_eq;
+
+    #[test]
+    fn test_root_in_interval() {
+        let result = bisect(|x| x.powi(2) - 1.0, 0.0, 2.0, 1e-10).unwrap();
+        assert_approx_eq(result.root, 1.0, 1e-9, "test_root_in_interval");
+    }
+
+    #[test]
+    fn test_root_at_lower_border() {
+        let result = bisect(|x| x.ln(), 1.0, 2.0, 1e-10).unwrap();
+        assert_approx_eq(result.root, 1.0, 1e-9, "test_root_at_lower_border");
+    }
+
+    #[test]
+    fn test_root_at_upper_border() {
+        let result = bisect(|x| x.ln(), 0.5, 1.0, 1e-10).unwrap();
+        assert_approx_eq(result.root, 1.0, 1e-9, "test_root_at_upper_border");
+    }
+
+    #[test]
+    fn test_root_at_midpoint() {
+        let result = bisect(|x| x.powi(3), -1.0, 1.0, 1e-10).unwrap();
+        assert_approx_eq(result.root, 0.0, 1e-9, "test_root_at_midpoint");
+    }
+
+    #[test]
+    fn test_not_bracketing_root() {
+        assert!(matches!(
+            bisect(|x| x.powi(2) + 1.0, -1.0, 1.0, 1.0e-6),
+            Err(RootError::RootNotBracketed { .. })
+        ));
+    }
+
+    #[test]
+    fn test_infinite_function() {
+        assert!(matches!(
+            bisect(|x| x.signum() * f64::INFINITY, -1.0, 1.0, 1.0e-6),
+            Err(RootError::NonFiniteEvaluation { .. })
+        ));
+    }
+
+    #[test]
+    fn test_invalid_tolerance() {
+        assert!(matches!(
+            bisect(|x| x.powi(2) - 1.0, 0.0, 1.0, -1.0e-6),
+            Err(RootError::InvalidTolerance { .. })
+        ));
+    }
 }
