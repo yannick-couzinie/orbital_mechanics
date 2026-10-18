@@ -100,6 +100,65 @@ mod tests {
     }
 
     #[test]
+    fn test_root_of_transcendental() {
+        // This is Problem 3.2: Find the three positive roots of the equation
+        // 10 exp(sin(x)) = x^2 - 5x + 4
+        // So I am looking for the roots of f(x) = x^2 - 5x + 4 - 10 exp(sin(x))
+
+        // In my calculator I made a table from 0 to 20 with step width 1 and find
+        // f(4) = -4.691
+        // f(5) = 0.1669
+        // f(6) = 2.4377
+        // f(7) = -1.289
+        // f(8) = 1.1049
+        fn func(x: f64) -> f64 {
+            x.powi(2) - 5.0 * x + 4.0 - 10.0 * x.sin().exp()
+        }
+        let result = bisect(func, 4.0, 5.0, 1e-10).unwrap();
+        assert_approx_eq(result.root, 4.95777677, 1e-8, "test_transcendental_1");
+
+        let result = bisect(func, 6.0, 7.0, 1e-10).unwrap();
+        assert_approx_eq(result.root, 6.77321280, 1e-8, "test_transcendental_2");
+
+        let result = bisect(func, 7.0, 8.0, 1e-10).unwrap();
+        assert_approx_eq(result.root, 7.91978355, 1e-8, "test_transcendental_3");
+    }
+
+    #[test]
+    fn test_root_of_transcendental_tanh_tan() {
+        // This is Problem 3.3: Find the first four nonnegative roots of the equation
+        // tan(x) = tanh(x) -> 0 = tanh(x) - tan(x)
+
+        // Besides 0 which is an obvious 0 let's find the others
+        // In my calculator I made a table from 0 to pi/2 but there was no sign change
+        // from pi/2 to 3pi/2:
+        // f(3.7707) = 0.271
+        // f(3.9707) = -0.092
+        //
+        // from 3pi/2 to 5pi/2:
+        // f(6.9123) = 0.2721
+        // f(7.1123) = -0.091
+
+        // from 5pi/2 to 7pi/2:
+        // f(10.053) = 0.2736
+        // f(10.253) = -0.0895
+        fn func(x: f64) -> f64 {
+            x.tanh() - x.tan()
+        }
+        let result = bisect(func, 0.0, 1.0, 1e-10).unwrap();
+        assert_approx_eq(result.root, 0.0, 1e-8, "test_transcendental_1");
+
+        let result = bisect(func, 3.7707, 3.9707, 1e-10).unwrap();
+        assert_approx_eq(result.root, 3.92660231, 1e-8, "test_transcendental_1");
+
+        let result = bisect(func, 6.9123, 7.1123, 1e-10).unwrap();
+        assert_approx_eq(result.root, 7.06858275, 1e-8, "test_transcendental_2");
+
+        let result = bisect(func, 10.053, 10.253, 1e-10).unwrap();
+        assert_approx_eq(result.root, 10.21017612, 1e-8, "test_transcendental_3");
+    }
+
+    #[test]
     fn test_root_at_lower_border() {
         let result = bisect(|x| x.ln(), 1.0, 2.0, 1e-10).unwrap();
         assert_approx_eq(result.root, 1.0, 1e-9, "test_root_at_lower_border");

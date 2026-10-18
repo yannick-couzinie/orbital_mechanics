@@ -88,6 +88,45 @@ mod tests {
     }
 
     #[test]
+    fn test_root_of_transcendental() {
+        // Same as for bisection
+        fn func(x: f64) -> f64 {
+            x.powi(2) - 5.0 * x + 4.0 - 10.0 * x.sin().exp()
+        }
+
+        fn deriv(x: f64) -> f64 {
+            2.0 * x - 5.0 - 10.0 * x.sin().exp() * x.cos()
+        }
+        let result = newton(func, deriv, 4.9, 1e-10).unwrap();
+        assert_approx_eq(result.root, 4.95777677, 1e-8, "test_transcendental_1");
+
+        let result = newton(func, deriv, 6.7, 1e-10).unwrap();
+        assert_approx_eq(result.root, 6.77321280, 1e-8, "test_transcendental_2");
+
+        let result = newton(func, deriv, 7.9, 1e-10).unwrap();
+        assert_approx_eq(result.root, 7.91978355, 1e-8, "test_transcendental_3");
+    }
+
+    #[test]
+    fn test_root_of_transcendental_tanh_tan() {
+        // Same as for bisection
+        fn func(x: f64) -> f64 {
+            x.tanh() - x.tan()
+        }
+        fn deriv(x: f64) -> f64 {
+            1.0 - x.tanh().powi(2) - 1.0 / x.cos().powi(2)
+        }
+        let result = newton(func, deriv, 3.9707, 1e-10).unwrap();
+        assert_approx_eq(result.root, 3.92660231, 1e-8, "test_transcendental_1");
+
+        let result = newton(func, deriv, 7.1123, 1e-10).unwrap();
+        assert_approx_eq(result.root, 7.06858275, 1e-8, "test_transcendental_2");
+
+        let result = newton(func, deriv, 10.253, 1e-10).unwrap();
+        assert_approx_eq(result.root, 10.21017612, 1e-8, "test_transcendental_3");
+    }
+
+    #[test]
     fn test_init_guess_is_root() {
         let result = newton(|x| x.ln(), |x| 1.0 / x, 1.0, 1e-10).unwrap();
         assert_approx_eq(result.root, 1.0, 1e-9, "test_init_guess_is_root");
