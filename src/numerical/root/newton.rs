@@ -181,4 +181,62 @@ mod tests {
             Err(RootError::ZeroDerivative { .. })
         ));
     }
+
+    #[test]
+    fn test_problem_39a() {
+        //! An earth-orbiting satellite has a perigee radius of 7000km and an apogee radius of
+        //! 10_000km. What true anomaly delta_theta is swept out between t = 0.5h and t = 1.5h after
+        //! perigee passage?
+        //! Answer should be 128.7 degrees.
+
+        let eccentricity: f64 = (10_000.0 - 7_000.0) / (10_000.0 + 7_000.0);
+
+        // roughly 2.1 hours
+        let period: f64 =
+            2.0 * std::f64::consts::PI / 398_600.0_f64.sqrt() * (17_000.0_f64 / 2.0).powf(1.5);
+
+        let mean_anomaly_1 = 2.0 * std::f64::consts::PI / period * 0.5 * 60.0 * 60.0;
+
+        let eccentric_anomaly_1 = newton(
+            |x| x - eccentricity * x.sin() - mean_anomaly_1,
+            |x| 1.0 - eccentricity * x.cos(),
+            mean_anomaly_1 + eccentricity / 2.0,
+            1.0e-6,
+        )
+        .unwrap()
+        .root;
+
+        let mean_anomaly_2 = 2.0 * std::f64::consts::PI / period * 1.5 * 60.0 * 60.0;
+
+        // second point is beyond apogee, i.e. mean_anomaly_2 > pi
+        let eccentric_anomaly_2 = newton(
+            |x| x - eccentricity * x.sin() - mean_anomaly_2,
+            |x| 1.0 - eccentricity * x.cos(),
+            mean_anomaly_2 - eccentricity / 2.0,
+            1.0e-6,
+        )
+        .unwrap()
+        .root;
+
+        let theta_1 = 2.0
+            * (((1.0 + eccentricity) / (1.0 - eccentricity)).sqrt()
+                * (eccentric_anomaly_1 / 2.0).tan())
+            .atan();
+        println!("{}", theta_1);
+
+        // theta_2 is negative so subtract it from 2pi
+        let theta_2 = 2.0 * std::f64::consts::PI
+            + 2.0
+                * (((1.0 + eccentricity) / (1.0 - eccentricity)).sqrt()
+                    * (eccentric_anomaly_2 / 2.0).tan())
+                .atan();
+        println!("{}", theta_2);
+
+        assert_approx_eq(
+            theta_2 - theta_1,
+            128.7 * 2.0 * std::f64::consts::PI / 360.0,
+            1e-1,
+            "Problem 3.9 solution",
+        );
+    }
 }
