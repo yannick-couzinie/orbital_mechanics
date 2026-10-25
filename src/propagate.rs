@@ -2,7 +2,7 @@
 
 use crate::force_model::ForceModel;
 use crate::numerical::integrate::{Integrator, errors::IntegrationError};
-use crate::numerical::root::newton;
+use crate::numerical::root::{errors::RootError, newton};
 use crate::numerical::stumpff;
 use crate::spacecraft::Spacecraft;
 use crate::state::State;
@@ -40,14 +40,14 @@ fn universal_kepler_equation_solver(
     vr0: f64,
     alpha: f64,
     mu: f64,
-) -> f64 {
+) -> Result<f64, RootError> {
     // Algorithm 3.3 from Curtis, i.e. solve the universal Kepler's equation for the universal
     // anomaly x given delta t, r0, vr0 and alpha.
     let init_estimate = mu.sqrt() * alpha.abs() * delta_time;
 
     // this is inefficient because we calculate C2 and C3 separately for botht he function eval and
     // derivative eval but it'll do for now
-    newton::newton(
+    let newton_result = newton::newton(
         |x| {
             r0 * vr0 / mu.sqrt() * x.powi(2) * stumpff::c2(alpha * x.powi(2))
                 + (1.0 - alpha * r0) * x.powi(3) * stumpff::c3(alpha * x.powi(2))
@@ -61,12 +61,16 @@ fn universal_kepler_equation_solver(
         },
         init_estimate,
         1.0e-6,
-    )
-    .unwrap()
-    .root
+    )?;
+
+    Ok(newton_result.root)
 }
 
-pub fn propagate_universal_variable(initial: &State, delta_time: f64, mu: f64) -> State {
+pub fn propagate_universal_variable(
+    initial: &State,
+    delta_time: f64,
+    mu: f64,
+) -> Result<State, RootError> {
     // Algorithm 3.4 from Curtis, i.e. given r0 and v0 initial state vector find r, v at a time delta t later.
 
     let init_radius_km = initial.radius();
@@ -75,7 +79,7 @@ pub fn propagate_universal_variable(initial: &State, delta_time: f64, mu: f64) -
     let alpha = 2.0 / init_radius_km - init_speed_kms.powi(2) / mu;
 
     let universal_anomaly =
-        universal_kepler_equation_solver(delta_time, init_radius_km, vr0, alpha, mu);
+        universal_kepler_equation_solver(delta_time, init_radius_km, vr0, alpha, mu)?;
 
     // find the lagrange parameters
     let stumpff_arg = alpha * universal_anomaly.powi(2);
@@ -90,7 +94,7 @@ pub fn propagate_universal_variable(initial: &State, delta_time: f64, mu: f64) -
     let gdot = 1.0 - universal_anomaly.powi(2) / new_radius_km * stumpff_c;
     let new_velocity = fdot * initial.position() + gdot * initial.velocity();
 
-    State::new(new_position, new_velocity)
+    Ok(State::new(new_position, new_velocity))
 }
 
 #[cfg(test)]
@@ -106,7 +110,8 @@ mod tests {
         let time_s = 60.0 * 60.0;
 
         let calculated =
-            universal_kepler_equation_solver(time_s, 7200.0, 1.0, 1.0 / 10_000.0, 398600.0);
+            universal_kepler_equation_solver(time_s, 7200.0, 1.0, 1.0 / 10_000.0, 398600.0)
+                .unwrap();
 
         // Independently calculate the initial eccentric anomaly.
         let r0_km: f64 = 7200.0;
@@ -158,7 +163,8 @@ mod tests {
 
         let initial_state = State::from([20_000.0, -105_000.0, -19_000.0, 0.9, -3.4, -1.5]);
 
-        let calculated = propagate_universal_variable(&initial_state, 2.0 * 60.0 * 60.0, 398600.0);
+        let calculated =
+            propagate_universal_variable(&initial_state, 2.0 * 60.0 * 60.0, 398600.0).unwrap();
 
         let expected = State::from([26_338.0, -128_750.0, -29_656.0, 0.8628, -3.2116, -1.4613]);
 

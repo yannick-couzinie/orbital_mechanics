@@ -16,7 +16,7 @@ pub fn c2(z: f64) -> f64 {
 }
 
 pub fn c3(z: f64) -> f64 {
-    //! Curtis' Z function
+    //! Curtis' S function
     if z > 1e-6 {
         (z.sqrt() - z.sqrt().sin()) / z.sqrt().powi(3)
     } else if z < -1e-6 {
