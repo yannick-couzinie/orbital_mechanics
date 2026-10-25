@@ -222,7 +222,6 @@ mod tests {
             * (((1.0 + eccentricity) / (1.0 - eccentricity)).sqrt()
                 * (eccentric_anomaly_1 / 2.0).tan())
             .atan();
-        println!("{}", theta_1);
 
         // theta_2 is negative so subtract it from 2pi
         let theta_2 = 2.0 * std::f64::consts::PI
@@ -230,13 +229,187 @@ mod tests {
                 * (((1.0 + eccentricity) / (1.0 - eccentricity)).sqrt()
                     * (eccentric_anomaly_2 / 2.0).tan())
                 .atan();
-        println!("{}", theta_2);
 
         assert_approx_eq(
             theta_2 - theta_1,
             128.7 * 2.0 * std::f64::consts::PI / 360.0,
-            1e-1,
+            1e-3,
             "Problem 3.9 solution",
         );
+    }
+
+    #[test]
+    fn test_problem_310a() {
+        //! An earth-orbiting satellite has a period of 14 h and a perigee radius of 10.000km. At
+        //! time t=10h after perigee passage, determine
+        //! (a) The radial position. (42356km)
+        //! (b) The speed. (2.303 km/s)
+        //! (c) The radial component of the velocity. (-1.271 km/s)
+
+        let sma: f64 = ((14.0 * 60.0 * 60.0 * 398600.0_f64.sqrt()) / (2.0 * std::f64::consts::PI))
+            .powf(2.0 / 3.0);
+        let eccentricity: f64 = 1.0 - 10_000.0 / sma;
+
+        let mean_anomaly = 2.0 * std::f64::consts::PI * 10.0 / 14.0;
+
+        let eccentric_anomaly = newton(
+            |x| x - eccentricity * x.sin() - mean_anomaly,
+            |x| 1.0 - eccentricity * x.cos(),
+            mean_anomaly - eccentricity / 2.0,
+            1.0e-6,
+        )
+        .unwrap()
+        .root;
+
+        assert_approx_eq(
+            sma * (1.0 - eccentricity * eccentric_anomaly.cos()),
+            42354.92107805533,
+            1e-3,
+            "Problem 3.10 solution",
+        );
+    }
+
+    #[test]
+    fn test_problem_311() {
+        //! A satellite in earth orbit has perigee and apogee radii of rp = 7500km and ra = 16000km,
+        //! respectively. Find its true anomaly 40 minute after passing the true anomaly of 80
+        //! degrees.
+        //! { Ans.: 174.7deg }
+
+        // we have already found that the time of passing of 80 degrees is 1473.5788s and so the
+        // time of interest is
+        let time_s: f64 = 3873.578838;
+        let sma_km: f64 = 11750.0;
+        let eccentricity: f64 = (16000.0 - 7500.0) / (16000.0 + 7500.0);
+
+        // roughly 2.1 hours
+        let period: f64 = 2.0 * std::f64::consts::PI / 398_600.0_f64.sqrt() * sma_km.powf(1.5);
+
+        let mean_anomaly = 2.0 * std::f64::consts::PI / period * time_s;
+
+        let eccentric_anomaly = newton(
+            |x| x - eccentricity * x.sin() - mean_anomaly,
+            |x| 1.0 - eccentricity * x.cos(),
+            mean_anomaly + eccentricity / 2.0,
+            1.0e-6,
+        )
+        .unwrap()
+        .root;
+
+        let theta_1 = 2.0
+            * (((1.0 + eccentricity) / (1.0 - eccentricity)).sqrt()
+                * (eccentric_anomaly / 2.0).tan())
+            .atan();
+
+        assert_approx_eq(
+            theta_1,
+            142.03 * 2.0 * std::f64::consts::PI / 360.0,
+            1e-4,
+            "Problem 3.11 solution",
+        );
+    }
+
+    #[test]
+    fn test_problem_316() {
+        //! A spacecraft on a hyperbolic trajectory around the earth has a perigee ardius of 6600km
+        //! and a perigee speed of 1.2v_esc. How far is the spacecraft from the center of the earth
+        //! 24 h after passing through perigee.
+        //! { Ans.: 656_610km }
+
+        let rp_km: f64 = 6_600.0;
+        // Velocity vp at perigee is sqrt(2mu/r)*1.2 and angular momentum is rp*vp
+        let angular_momentum_km2s: f64 = (2.0 * 398600.0 * rp_km).sqrt() * 1.2;
+        let time_s: f64 = 24.0 * 60.0 * 60.0;
+        let eccentricity: f64 = angular_momentum_km2s.powi(2) / (398600.0 * rp_km) - 1.0;
+
+        let hyperbolic_mean_anomaly = 398600.0_f64.powi(2) / angular_momentum_km2s.powi(3)
+            * (eccentricity.powi(2) - 1.0).powf(1.5)
+            * time_s;
+
+        let eccentric_anomaly = newton(
+            |x| eccentricity * x.sinh() - x - hyperbolic_mean_anomaly,
+            |x| eccentricity * x.cosh() - 1.0,
+            hyperbolic_mean_anomaly,
+            1.0e-6,
+        )
+        .unwrap()
+        .root;
+
+        let true_anomaly = 2.0
+            * (((eccentricity + 1.0) / (eccentricity - 1.0)).sqrt()
+                * (eccentric_anomaly / 2.0).tanh())
+            .atan();
+
+        let distance_at_24h: f64 = angular_momentum_km2s.powi(2) / 398600.0 * 1.0
+            / (1.0 + eccentricity * true_anomaly.cos());
+
+        assert_approx_eq(distance_at_24h, 656610.0, 1e-0, "Problem 3.16 solution");
+    }
+
+    #[test]
+    fn test_problem_317() {
+        //! A trajectory has a perigee velocity 1.1vesc and a perigee altitude of 200km. If at 10
+        //! a.m. the satellite is traveling toward the earth with a speed of 8km/s, how far will it
+        //! be from the earth's surface at 5 p.m. the same day?
+        //! { Ans.: 136_250km }
+
+        let rp_km: f64 = 200.0 + 6378.0;
+        let vp_kms: f64 = 1.1 * (2.0 * 398600.0 / rp_km).sqrt();
+
+        let angular_momentum_km2s: f64 = rp_km * vp_kms;
+        let eccentricity: f64 = angular_momentum_km2s.powi(2) / (398600.0 * rp_km) - 1.0;
+
+        // we need to find the true anomaly when the trajectory had a velocity of 8km/s from that we
+        // can calculate the time to perigee and then we can use 7 hours - time to perigee to get
+        // the time after perigee and then we calculate the true anomaly and distance
+
+        // The energy is constant v^2/2 - mu/r so use the perigee data and velocity to get the
+        // distance
+        let distance_at_10am_km =
+            -(398600.0 / (vp_kms.powi(2) / 2.0 - 64.0 / 2.0 - 398600.0 / rp_km));
+
+        // from the orbit equation we can get the true anomaly at 10am
+        // acos is symmetric so we need to tell it which branch to choose, in this case we know the
+        // spacecraft is travelling towards us so this should be negative
+        let true_anomaly_at_10am =
+            -((angular_momentum_km2s.powi(2) / (398600.0 * distance_at_10am_km) - 1.0)
+                / eccentricity)
+                .acos();
+
+        let eccentric_anomaly_at_10am = 2.0
+            * (((eccentricity - 1.0) / (eccentricity + 1.0)).sqrt()
+                * (true_anomaly_at_10am / 2.0).tan())
+            .atanh();
+
+        let mean_anomaly_at_10am =
+            eccentricity * eccentric_anomaly_at_10am.sinh() - eccentric_anomaly_at_10am;
+        let time_to_perigee_from_10am = angular_momentum_km2s.powi(3) / 398600.0_f64.powi(2)
+            * (eccentricity.powi(2) - 1.0).powf(-1.5)
+            * mean_anomaly_at_10am;
+
+        let time_s: f64 = (17.0 - 10.0) * 60.0 * 60.0 + time_to_perigee_from_10am;
+
+        let hyperbolic_mean_anomaly = 398600.0_f64.powi(2) / angular_momentum_km2s.powi(3)
+            * (eccentricity.powi(2) - 1.0).powf(1.5)
+            * time_s;
+
+        let eccentric_anomaly = newton(
+            |x| eccentricity * x.sinh() - x - hyperbolic_mean_anomaly,
+            |x| eccentricity * x.cosh() - 1.0,
+            hyperbolic_mean_anomaly,
+            1.0e-6,
+        )
+        .unwrap()
+        .root;
+
+        let true_anomaly = 2.0
+            * (((eccentricity + 1.0) / (eccentricity - 1.0)).sqrt()
+                * (eccentric_anomaly / 2.0).tanh())
+            .atan();
+
+        let distance: f64 = angular_momentum_km2s.powi(2) / 398600.0 * 1.0
+            / (1.0 + eccentricity * true_anomaly.cos());
+
+        assert_approx_eq(distance, 136250.0 + 6378.0, 1e-0, "Problem 3.16 solution");
     }
 }
