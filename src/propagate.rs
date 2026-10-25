@@ -170,4 +170,55 @@ mod tests {
 
         assert_state_approx_eq(&expected, &calculated, 5.1, 1e-4, "Problem 3.20");
     }
+
+    #[test]
+    fn test_universal_variable_zero_time() {
+        let initial = State::from([7000.0, 1000.0, -500.0, -1.0, 7.5, 0.5]);
+
+        let propagated = propagate_universal_variable(&initial, 0.0, 398_600.0).unwrap();
+
+        assert_state_approx_eq(
+            &propagated,
+            &initial,
+            1.0e-12,
+            1.0e-12,
+            "zero-time propagation",
+        );
+    }
+
+    #[test]
+    fn test_universal_variable_conserves_two_body_invariants() {
+        let mu: f64 = 398_600.0;
+
+        let initial = State::from([20_000.0, -105_000.0, -19_000.0, 0.9, -3.4, -1.5]);
+
+        let propagated = propagate_universal_variable(&initial, 7200.0, mu).unwrap();
+
+        let initial_specific_energy = initial.speed().powi(2) / 2.0 - mu / initial.radius();
+
+        let propagated_specific_energy =
+            propagated.speed().powi(2) / 2.0 - mu / propagated.radius();
+
+        assert_approx_eq(
+            propagated_specific_energy,
+            initial_specific_energy,
+            1.0e-12,
+            "specific orbital energy conservation",
+        );
+
+        let initial_position = initial.position();
+        let initial_velocity = initial.velocity();
+        let initial_angular_momentum = initial_position.cross(&initial_velocity);
+
+        let propagated_position = propagated.position();
+        let propagated_velocity = propagated.velocity();
+        let propagated_angular_momentum = propagated_position.cross(&propagated_velocity);
+
+        assert_approx_eq(
+            (propagated_angular_momentum - initial_angular_momentum).norm(),
+            0.0,
+            1.0e-8,
+            "specific angular momentum conservation",
+        );
+    }
 }
