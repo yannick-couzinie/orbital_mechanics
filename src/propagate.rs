@@ -5,7 +5,7 @@ use crate::numerical::integrate::{Integrator, errors::IntegrationError};
 use crate::numerical::root::{errors::RootError, newton};
 use crate::numerical::stumpff;
 use crate::spacecraft::Spacecraft;
-use crate::state::State;
+use crate::state::{ReferenceFrame, State};
 
 pub struct Trajectory {
     pub times: Vec<f64>,
@@ -30,7 +30,11 @@ pub fn propagate(
 
     Ok(Trajectory {
         times: int_result.times,
-        states: int_result.states.into_iter().map(State::from).collect(),
+        states: int_result
+            .states
+            .into_iter()
+            .map(|x| State::from_vector(x, sc.state.frame))
+            .collect(),
     })
 }
 
@@ -94,7 +98,7 @@ pub fn propagate_universal_variable(
     let gdot = 1.0 - universal_anomaly.powi(2) / new_radius_km * stumpff_c;
     let new_velocity = fdot * initial.position() + gdot * initial.velocity();
 
-    Ok(State::new(new_position, new_velocity))
+    Ok(State::new(new_position, new_velocity, initial.frame))
 }
 
 #[cfg(test)]
@@ -161,19 +165,28 @@ mod tests {
         //!         v = 0.86280i - 3.2116j - 1.4613k (km/s)
         //! }
 
-        let initial_state = State::from([20_000.0, -105_000.0, -19_000.0, 0.9, -3.4, -1.5]);
+        let initial_state = State::from_array(
+            [20_000.0, -105_000.0, -19_000.0, 0.9, -3.4, -1.5],
+            ReferenceFrame::GeocentricEquatorial,
+        );
 
         let calculated =
             propagate_universal_variable(&initial_state, 2.0 * 60.0 * 60.0, 398600.0).unwrap();
 
-        let expected = State::from([26_338.0, -128_750.0, -29_656.0, 0.8628, -3.2116, -1.4613]);
+        let expected = State::from_array(
+            [26_338.0, -128_750.0, -29_656.0, 0.8628, -3.2116, -1.4613],
+            ReferenceFrame::GeocentricEquatorial,
+        );
 
         assert_state_approx_eq(&expected, &calculated, 5.1, 1e-4, "Problem 3.20");
     }
 
     #[test]
     fn test_universal_variable_zero_time() {
-        let initial = State::from([7000.0, 1000.0, -500.0, -1.0, 7.5, 0.5]);
+        let initial = State::from_array(
+            [7000.0, 1000.0, -500.0, -1.0, 7.5, 0.5],
+            ReferenceFrame::GeocentricEquatorial,
+        );
 
         let propagated = propagate_universal_variable(&initial, 0.0, 398_600.0).unwrap();
 
@@ -190,7 +203,10 @@ mod tests {
     fn test_universal_variable_conserves_two_body_invariants() {
         let mu: f64 = 398_600.0;
 
-        let initial = State::from([20_000.0, -105_000.0, -19_000.0, 0.9, -3.4, -1.5]);
+        let initial = State::from_array(
+            [20_000.0, -105_000.0, -19_000.0, 0.9, -3.4, -1.5],
+            ReferenceFrame::GeocentricEquatorial,
+        );
 
         let propagated = propagate_universal_variable(&initial, 7200.0, mu).unwrap();
 

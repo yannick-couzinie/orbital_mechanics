@@ -10,11 +10,15 @@ const MASS_EARTH: f64 = 5.9722e24;
 use curtis_orbital_mechanics::numerical::integrate::adaptive_step_rk::{
     AdaptiveRkParameters, AdaptiveStepRkMethod,
 };
+use curtis_orbital_mechanics::state::{ReferenceFrame, State};
 use curtis_orbital_mechanics::{force_model::TwoBody, propagate, spacecraft};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sc = spacecraft::Spacecraft::new(
-        [3207000., 5459000., 2714000., -6532., 783.5, 6142.],
+        State::from_array(
+            [3207000., 5459000., 2714000., -6532., 783.5, 6142.],
+            ReferenceFrame::GeocentricEquatorial,
+        ),
         1000.,
         0.0,
     );
