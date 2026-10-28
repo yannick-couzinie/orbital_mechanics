@@ -21,6 +21,16 @@ pub struct EquatorialDirection {
     pub declination_rad: f64,
 }
 
+impl EquatorialDirection {
+    pub fn to_vector(&self, magnitude: f64) -> Vector3<f64> {
+        Vector3::new(
+            magnitude * self.declination_rad.cos() * self.right_ascension_rad.cos(),
+            magnitude * self.declination_rad.cos() * self.right_ascension_rad.sin(),
+            magnitude * self.declination_rad.sin(),
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EquatorialDirectionError {
     WrongReferenceFrame,
